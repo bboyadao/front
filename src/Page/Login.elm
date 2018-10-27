@@ -118,12 +118,8 @@ getTokenCompleted model result =
                 { 
                     model | token = some_token                 
                 }|> Debug.log "got new token"
+                ,storeCredWith model
                 
-                -- , model |> storeCredWith 
-                ,Cmd.batch [ storeCredWith model]
-                
-                -- ,model.token 
-                -- ,Cmd.none
             )
 
         Err error ->
