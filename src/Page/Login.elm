@@ -1,4 +1,4 @@
-port module Page.Login exposing (Model, Msg(..), subscriptions, toSession, update, view,init,pushTolocal)
+port module Page.Login exposing (Model, Msg(..), subscriptions, toSession, update, view,init,storeCredWith)
 
 import Browser
 import Browser.Navigation exposing(load )
@@ -28,7 +28,9 @@ storeCredWith model =
             Encode.object
                 [ ( "user"
                   , Encode.object
-                        [  ( "token", Encode.string model.token ) ]
+                        [  ( "token", Encode.string model.token )
+                        ,  ( "username", Encode.string model.username )
+                        ]
                   )
                 ]
     in
@@ -48,27 +50,27 @@ init session =
         , password  = ""
         , passwordAgain  = ""
         , errorMsg  = ""}
-      
+
     , Cmd.none
     )
 
 
 usersignupEncoder : Model -> Encode.Value
-usersignupEncoder model = 
-    Encode.object 
+usersignupEncoder model =
+    Encode.object
         [ ("username", Encode.string model.username)
-        , ("email", Encode.string model.email) 
-        , ("password1", Encode.string model.password) 
-        , ("password2", Encode.string model.passwordAgain) 
-        
-        ]    
+        , ("email", Encode.string model.email)
+        , ("password1", Encode.string model.password)
+        , ("password2", Encode.string model.passwordAgain)
+
+        ]
 
 userEncoder : Model -> Encode.Value
-userEncoder model = 
-    Encode.object 
+userEncoder model =
+    Encode.object
         [ ("username", Encode.string model.username)
-        , ("password", Encode.string model.password) 
-        ]     
+        , ("password", Encode.string model.password)
+        ]
 
 toSession : Model -> Session
 toSession model =
@@ -114,13 +116,17 @@ getTokenCompleted : Model -> Result Http.Error String -> ( Model, Cmd Msg )
 getTokenCompleted model result =
     case result of
         Ok some_token ->
-            ( 
-                { 
-                    model | token = some_token                 
-                }|> Debug.log "got new token"
-                ,storeCredWith model
-                
-            )
+
+            let withToken = { model | token = some_token }
+                in
+                ( withToken |> Debug.log "got new token"
+            ,Cmd.batch[storeCredWith withToken, gotoMainsite] )
+                -- {
+                --     model | token = some_token
+                -- }|> Debug.log "got new token"
+                -- ,storeCredWith model
+
+
 
         Err error ->
 
@@ -136,8 +142,8 @@ httpErrorString error =
             "Http Timeout"
         NetworkError ->
             "Network Error"
-        BadStatus response -> "Invalid Cridential!"  ++ Debug.toString response.body 
-            
+        BadStatus response -> "Invalid Cridential!"  ++ Debug.toString response.body
+
         BadPayload message response ->
             "Bad Http Payload: "
                 ++ Debug.toString message
@@ -151,13 +157,13 @@ subscriptions _ =
 
 -- MODEL
 type alias Errors =
-    {   
+    {
         username : String
-        ,password : String 
+        ,password : String
         ,non_field_errors : String
     }
 type alias Model =
-    {   
+    {
         session : Session
         , container_active : Bool
         , username : String
@@ -184,18 +190,18 @@ type Msg
   | SetPassword String
   | SetPasswordAgain String
   | SetEmail String
-  | ClickLogin 
+  | ClickLogin
   | ClickSignup
   | GetTokenCompleted (Result Http.Error String)
-  | SetToken String
-  | GotoMainsite 
+--   | SetToken String
+  | GotoMainsite
   | Addclass_active
   | Addclass_close
-  
-  
-  
-  
- 
+
+
+
+
+
 
 
 
@@ -203,26 +209,25 @@ type Msg
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    
-    
+
+
     GotoMainsite -> (model, gotoMainsite)
 
     ClickLogin ->
         ( {model| errorMsg = ""}, authUserCmd model url_login )
-    
-    ClickSignup -> 
+
+    ClickSignup ->
         ( {model| errorMsg = ""}, signupCmd model url_signup )
-    
-    SetToken str -> (
-        {model | token =str}
-        ,Cmd.none)
-    
+
+    -- SetToken str -> 
+    --     ({model | token =str},Cmd.none)
+
     SetUsername name ->
       ({ model | username = name },Cmd.none)
 
     SetPassword password ->
       ({ model | password = password },Cmd.none)
-    
+
     SetEmail email ->
         ({model | email = email },Cmd.none)
 
@@ -232,22 +237,21 @@ update msg model =
     GetTokenCompleted result ->
             getTokenCompleted model result
 
-    Addclass_active  -> 
+    Addclass_active  ->
         ({model | container_active = True}, Cmd.none)
 
     Addclass_close ->
         ({model | container_active = False}, Cmd.none)
-    
-    
+
+
 
 -- VIEW
 
 view : Model -> { title : String, content : Html Msg }
-view model =
-    { title = "Trang Đăng Nhập"
-    , content = login_page model
-        
-    }
+view model = { title = "Trang Đăng Nhập"
+             , content = login_page model
+
+            }
 
 stylesheet =
     let
@@ -256,39 +260,39 @@ stylesheet =
             [ attribute "rel"       "stylesheet"
             , attribute "property"  "stylesheet"
             , attribute "href"      "static/css/Account/login.css"
-            
+
             ]
         children = []
-    in 
+    in
         node tag attrs children
 
 login_page : Model -> Html Msg
 login_page model =
-    div [ 
+    div [
         Html.Attributes.classList [
                 ("container", True),
-                ("active", model.container_active)                
+                ("active", model.container_active)
             ]
     ]
-    
+
     [
-    div [ class "card" ][]        
+    div [ class "card" ][]
 
     , div [ class "card" ]
         [ h1 [ class "title" ]
             [ text "Đăng Nhập" ]
         ,
-        
+
         div [class"errors",
-        if String.length model.errorMsg > 0 then 
+        if String.length model.errorMsg > 0 then
         hidden False
         else
        hidden  True
-        
+
          ] [ li[class "error"][ text  model.errorMsg ] ]
         ,div []
             [ div [ class "input-container" ]
-                [ input [ Html.Attributes.value model.username 
+                [ input [ Html.Attributes.value model.username
                 , onInput SetUsername
                 , attribute  "required" "required"
                 , autocomplete False]
@@ -298,7 +302,7 @@ login_page model =
                 , div [ class "bar" ]
                     []
                 ]
-                
+
             , div [ class "input-container" ]
                 [ input [ type_ "password"
                 ,onInput SetPassword
@@ -328,7 +332,7 @@ login_page model =
             ]
         ]
     , div [ class "card alt" ]
-        [ div 
+        [ div
             [ class "toggle", onClick Addclass_active ]
             [text ""]
         , h1 [ class "title" ]
@@ -353,7 +357,7 @@ login_page model =
                 , label [ for "email" ]
                     [ text "E-mail" ]
                 , div [ class "bar" ]
-                    []    
+                    []
                 ]
             , div [ class "input-container" ]
                 [ input [type_ "password", id "pass", attribute "required" "required", autocomplete False
@@ -380,7 +384,13 @@ login_page model =
                     ]
                 ]
             ]
-        ,stylesheet    
-        
+        ,stylesheet
+
         ]
     ]
+
+
+
+proFile : Model -> Html Msg
+proFile model =
+    div[][]

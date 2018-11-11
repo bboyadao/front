@@ -9,7 +9,7 @@ import Json.Encode as Encode exposing (..)
 
 import Page exposing (Page)
 -- import Page.AboutUs as AboutUs
-import Page.Mpage as MYpage
+import Page.AddCard as AddCard
 import Page.Blank as Blank
 import Page.Home as Home
 import Page.Login as Login
@@ -38,8 +38,9 @@ main =
 type Model =  Home Home.Model
     | Redirect Session
     | NotFound Session
-    | Mypage MYpage.Model
-    | Login Login.Model    
+    | AddCard AddCard.Model
+    | Login Login.Model
+
     -- | AboutUs AboutUs.Model
 
 
@@ -51,7 +52,25 @@ type Msg
     | GotLoginMsg Login.Msg
     -- | GotAboutUsMsg AboutUs.Msg
     | GotSession Session
-    | GotMpageMsg MYpage.Msg 
+    | GotAddCardMsg AddCard.Msg
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model of
+        AddCard addcard ->
+            Sub.map GotAddCardMsg (AddCard.subscriptions addcard)
+
+        Home home ->
+            Sub.map GotHomeMsg (Home.subscriptions home)
+
+        Login login ->
+            Sub.map GotLoginMsg (Login.subscriptions login)
+        _  ->
+            Sub.none
 
 
 
@@ -85,9 +104,9 @@ changeRouteTo maybeRoute model =
         --     AboutUs.init session
         --         |> updateWith AboutUs GotAboutUsMsg model
 
-        Just Route.Mpage ->
-            MYpage.init session
-                |> updateWith Mypage GotMpageMsg model
+        Just Route.AddCard ->
+            AddCard.init session
+                |> updateWith AddCard GotAddCardMsg model
 
 toSession : Model -> Session
 toSession page =
@@ -100,8 +119,8 @@ toSession page =
 
         Home home ->
             Home.toSession home
-        Mypage mpage ->
-            MYpage.toSession mpage
+        AddCard addcard ->
+            AddCard.toSession addcard
         Login login ->
             Login.toSession login
 
@@ -148,9 +167,9 @@ update msg model =
         --     AboutUs.update subMsg aboutUs
         --         |> updateWith AboutUs GotAboutUsMsg model
 
-        ( GotMpageMsg  subMsg, Mypage  aboutUs) ->
-            MYpage.update subMsg aboutUs
-                |> updateWith Mypage GotMpageMsg model
+        ( GotAddCardMsg  subMsg, AddCard  aboutUs) ->
+            AddCard.update subMsg aboutUs
+                |> updateWith AddCard GotAddCardMsg model
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
             ( model, Cmd.none )
@@ -158,13 +177,6 @@ update msg model =
 
 
 
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
 
 
 
@@ -193,12 +205,11 @@ view model =
         Home home ->
             viewPage Page.Home GotHomeMsg (Home.view home)
 
-        Mypage mpage ->
-            viewPage Page.MYpage GotMpageMsg (MYpage.view mpage)
-        
+        AddCard mpage ->
+            viewPage Page.AddCard GotAddCardMsg (AddCard.view mpage)
+
         Login login ->
             viewPage Page.Login GotLoginMsg (Login.view login)
 
         -- AboutUs aboutUs ->
         --     viewPage Page.Other GotAboutUsMsg (AboutUs.view aboutUs)
-

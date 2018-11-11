@@ -14,7 +14,7 @@ type Page
     = Other
     | Login
     | Home
-    | MYpage
+    | AddCard
     -- | AboutUs
     
 
@@ -25,7 +25,7 @@ type Page
 
 view :  Page -> { title : String, content : Html msg } -> Document msg
 view  page { title, content } =
-    { title = title ++ " - Elements"
+    { title = title ++ " - Mua Bán Thẻ Cào"
     , body = 
         
         viewHeader  :: content  :: [  viewFooter ]
@@ -45,13 +45,17 @@ viewHeader   =
             , nav [ class "mdl-navigation mdl-layout--large-screen-only" ]
                 [ 
                 a [ class "mdl-navigation__link", Route.href Route.Home]
-                    [ text "Home" ]
+                    [ text "Trang Chủ" ]
                 -- , a [ class "mdl-navigation__link", Route.href Route.About ]
                 --     [ text "About" ]
                 , a [ class "mdl-navigation__link", Route.href Route.Login ]
-                    [ text "Account" ]
-                , a [ class "mdl-navigation__link", Route.href Route.Mpage ]
-                    [ text "Mpage" ]
+                    [ text "Tài Khoản" ]
+                , a [ class "mdl-navigation__link", Route.href Route.AddCard ]
+                    [ text "Nạp Thẻ" ]
+                , a [ class "mdl-navigation__link" ]
+                    [ text "Rút Tiền" ]
+                , a [ class "mdl-navigation__link"]
+                    [ text "Hướng Dẫn" ]
                 ]
             ]
         ]
@@ -62,5 +66,5 @@ viewFooter =
         [ class "container-fluid" ]
             [ 
                 div [ class "container" ]
-                    [ text "This is the footer." ]
+                    [ text "Beta V0.1." ]
         ]

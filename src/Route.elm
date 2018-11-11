@@ -13,11 +13,9 @@ import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string)
 
 type Route
     = Home
-    -- | Account
-    -- | About
-    | Root
-    | Mpage
+    | Root    
     | Login
+    | AddCard
 
 parser : Parser (Route -> a) a
 parser =
@@ -25,8 +23,8 @@ parser =
         [ Parser.map Home Parser.top
         -- , Parser.map Account (s "account")
         -- , Parser.map About (s "about")
-        , Parser.map Login (s "login")
-        , Parser.map Mpage (s "mpage")
+        , Parser.map Login (s "account")
+        , Parser.map AddCard (s "addcard")
         
         ]
 
@@ -76,12 +74,12 @@ routeToString page =
 
                 -- Account ->
                 --     [ "account" ]
-                Mpage ->
-                    [ "mpage" ]
+                AddCard ->
+                    [ "addcard" ]
 
                 -- About ->
                 --     [ "about" ]
                 Login ->
-                    [ "login" ]
+                    [ "account" ]
     in
     "#" ++ String.join "/" pieces
