@@ -19,7 +19,14 @@ import Session exposing (Session)
 import Url
 
 
+init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init flags url key =
+    changeRouteTo (Route.fromUrl url) (Redirect (Session.fromViewer key))
 
+-- init : Maybe Viewer -> Url -> Nav.Key -> ( Model, Cmd Msg )
+-- init maybeViewer url navKey =
+--     changeRouteTo (Route.fromUrl url)
+--         (Redirect (Session.fromViewer navKey maybeViewer))
 
 main : Program () Model Msg
 main =
@@ -74,9 +81,6 @@ subscriptions model =
 
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init flags url key =
-    changeRouteTo (Route.fromUrl url) (Redirect (Session.fromViewer key))
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
 changeRouteTo maybeRoute model =
