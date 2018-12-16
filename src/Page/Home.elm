@@ -39,9 +39,10 @@ view model =
                 [ div [ class "jumbotron mt-5" ]
                     [ text model.message
                     , br [] []
-                    , a [ 
-                        -- Route.href Route.About 
-                        ] [ text "Go to the Login Page" ]
+                    , a
+                        [-- Route.href Route.About
+                        ]
+                        [ text "Go to the Login Page" ]
                     ]
                 ]
             ]
@@ -54,11 +55,15 @@ view model =
 
 type Msg
     = NoOp
+    | GotSession Session
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GotSession session ->
+            ( { model | session = session }, Cmd.none )
+
         NoOp ->
             ( model, Cmd.none )
 
@@ -68,8 +73,8 @@ update msg model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    Session.changes GotSession (Session.navKey model.session)
 
 
 

@@ -1,4 +1,4 @@
-module Route exposing (Route(..), fromUrl, href, parser, pushUrl, routeToString)
+module Route exposing (Route(..), fromUrl, href, parser, pushUrl, replaceUrl, routeToString)
 
 import Browser.Navigation as Nav
 import Html exposing (..)
@@ -13,24 +13,34 @@ import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string)
 
 type Route
     = Home
-    | Root    
+    | Root
     | Login
     | AddCard
+    | Profile
+    | About
+
 
 parser : Parser (Route -> a) a
 parser =
     oneOf
         [ Parser.map Home Parser.top
+
         -- , Parser.map Account (s "account")
         -- , Parser.map About (s "about")
         , Parser.map Login (s "account")
         , Parser.map AddCard (s "addcard")
-        
+        , Parser.map Profile (s "profile")
+        , Parser.map About (s "about")
         ]
 
 
 
 -- PUBLIC HELPERS
+
+
+replaceUrl : Nav.Key -> Route -> Cmd msg
+replaceUrl key route =
+    Nav.replaceUrl key (routeToString route)
 
 
 href : Route -> Attribute msg
@@ -51,13 +61,12 @@ fromUrl url =
     --
     -- The Elm SPA Examples uses `#` for routings, to do so they construct the url like this:
     { url | path = Maybe.withDefault "" url.fragment, fragment = Nothing }
-    |> Parser.parse parser
-
-    -- url
-    --     |> Parser.parse parser
+        |> Parser.parse parser
 
 
 
+-- url
+--     |> Parser.parse parser
 -- INTERNAL HELPERS
 
 
@@ -66,6 +75,9 @@ routeToString page =
     let
         pieces =
             case page of
+                About ->
+                    [ "about" ]
+
                 Home ->
                     []
 
@@ -81,5 +93,8 @@ routeToString page =
                 --     [ "about" ]
                 Login ->
                     [ "account" ]
+
+                Profile ->
+                    [ "profile" ]
     in
     "#" ++ String.join "/" pieces

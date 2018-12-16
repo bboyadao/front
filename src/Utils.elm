@@ -1,15 +1,22 @@
 module Utils exposing (httpErrorString)
-import Http exposing(..)
+
+import Http exposing (..)
+
+
 httpErrorString : Http.Error -> String
 httpErrorString error =
     case error of
         BadUrl text ->
             "Bad Url: " ++ text
+
         Timeout ->
             "Http Timeout"
+
         NetworkError ->
             "Network Error"
-        BadStatus response -> "Invalid Cridential!"  ++ Debug.toString response.body
+
+        BadStatus response ->
+            "Invalid Cridential!" ++ Debug.toString response.body
 
         BadPayload message response ->
             "Bad Http Payload: "
@@ -17,6 +24,3 @@ httpErrorString error =
                 ++ " ("
                 ++ Debug.toString response.status.code
                 ++ ")"
-
-
-

@@ -1,54 +1,66 @@
-module Main exposing (..)
+module Main exposing (main)
 
+import Api exposing (Cred)
 import Browser
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Json.Decode as Decode exposing (..)
 import Json.Encode as Encode exposing (..)
-
 import Page exposing (Page)
--- import Page.AboutUs as AboutUs
+import Page.About as About
 import Page.AddCard as AddCard
 import Page.Blank as Blank
 import Page.Home as Home
 import Page.Login as Login
 import Page.NotFound as NotFound
+import Page.Profile as Profile
 import Route exposing (Route)
-import Session exposing (Session)
+import Session exposing (Session, fromViewer)
 import Url
+import Viewer exposing (..)
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init flags url key =
-    changeRouteTo (Route.fromUrl url) (Redirect (Session.fromViewer key))
+init : Maybe Viewer -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init maybeViewer url key =
+    changeRouteTo (Route.fromUrl url)
+        (Redirect (Session.fromViewer key maybeViewer))
 
--- init : Maybe Viewer -> Url -> Nav.Key -> ( Model, Cmd Msg )
--- init maybeViewer url navKey =
---     changeRouteTo (Route.fromUrl url)
---         (Redirect (Session.fromViewer navKey maybeViewer))
 
-main : Program () Model Msg
+main : Program Decode.Value Model Msg
+
+
+
+-- main : Program String Model Msg
+
+
 main =
-    Browser.application
+    Api.application Viewer.decoder
         { init = init
-        , view = view
-        , update = update
-        , subscriptions = subscriptions
         , onUrlChange = UrlChanged
         , onUrlRequest = LinkClicked
+        , subscriptions = subscriptions
+        , update = update
+        , view = view
         }
+
+
 
 -- MODEL
 
 
-type Model =  Home Home.Model
+type Model
+    = Home Home.Model
     | Redirect Session
     | NotFound Session
     | AddCard AddCard.Model
     | Login Login.Model
+    | Profile Profile.Model
+    | About About.Model
 
-    -- | AboutUs AboutUs.Model
+
+
+-- | AboutUs AboutUs.Model
 
 
 type Msg
@@ -57,9 +69,11 @@ type Msg
     | UrlChanged Url.Url
     | GotHomeMsg Home.Msg
     | GotLoginMsg Login.Msg
-    -- | GotAboutUsMsg AboutUs.Msg
     | GotSession Session
     | GotAddCardMsg AddCard.Msg
+    | GotProfileMsg Profile.Msg
+    | GotAboutMsg About.Msg
+
 
 
 -- SUBSCRIPTIONS
@@ -68,6 +82,15 @@ type Msg
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
+        Redirect _ ->
+            Session.changes GotSession (Session.navKey (toSession model))
+
+        NotFound _ ->
+            Sub.none
+
+        Profile profile ->
+            Sub.map GotProfileMsg (Profile.subscriptions profile)
+
         AddCard addcard ->
             Sub.map GotAddCardMsg (AddCard.subscriptions addcard)
 
@@ -76,10 +99,9 @@ subscriptions model =
 
         Login login ->
             Sub.map GotLoginMsg (Login.subscriptions login)
-        _  ->
+
+        _ ->
             Sub.none
-
-
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -89,9 +111,6 @@ changeRouteTo maybeRoute model =
             toSession model
     in
     case maybeRoute of
-        Nothing ->
-            ( NotFound session, Cmd.none )
-
         Just Route.Root ->
             ( model, Route.pushUrl (Session.navKey session) Route.Home )
 
@@ -103,18 +122,31 @@ changeRouteTo maybeRoute model =
             Login.init session
                 |> updateWith Login GotLoginMsg model
 
-
-        -- Just Route.About ->
-        --     AboutUs.init session
-        --         |> updateWith AboutUs GotAboutUsMsg model
+        Just Route.About ->
+            About.init session
+                |> updateWith About GotAboutMsg model
 
         Just Route.AddCard ->
             AddCard.init session
                 |> updateWith AddCard GotAddCardMsg model
 
+        Just Route.Profile ->
+            Profile.init session
+                |> updateWith Profile GotProfileMsg model
+
+        Nothing ->
+            ( NotFound session, Cmd.none )
+
+
 toSession : Model -> Session
 toSession page =
     case page of
+        Profile profile ->
+            Profile.toSession profile
+
+        About about ->
+            About.toSession about
+
         NotFound session ->
             session
 
@@ -123,13 +155,17 @@ toSession page =
 
         Home home ->
             Home.toSession home
+
         AddCard addcard ->
             AddCard.toSession addcard
+
         Login login ->
             Login.toSession login
 
-        -- AboutUs aboutUs ->
-        --     AboutUs.toSession aboutUs
+
+
+-- AboutUs aboutUs ->
+--     AboutUs.toSession aboutUs
 
 
 updateWith : (subModel -> Model) -> (subMsg -> Msg) -> Model -> ( subModel, Cmd subMsg ) -> ( Model, Cmd Msg )
@@ -137,6 +173,7 @@ updateWith toModel toMsg model ( subModel, subCmd ) =
     ( toModel subModel
     , Cmd.map toMsg subCmd
     )
+
 
 
 -- UPDATE
@@ -167,20 +204,17 @@ update msg model =
             Login.update subMsg login
                 |> updateWith Login GotLoginMsg model
 
-        -- ( GotAboutUsMsg subMsg, AboutUs aboutUs ) ->
-        --     AboutUs.update subMsg aboutUs
-        --         |> updateWith AboutUs GotAboutUsMsg model
+        ( GotProfileMsg subMsg, Profile profile ) ->
+            Profile.update subMsg profile
+                |> updateWith Profile GotProfileMsg model
 
-        ( GotAddCardMsg  subMsg, AddCard  aboutUs) ->
-            AddCard.update subMsg aboutUs
+        ( GotAddCardMsg subMsg, AddCard addcard ) ->
+            AddCard.update subMsg addcard
                 |> updateWith AddCard GotAddCardMsg model
+
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
             ( model, Cmd.none )
-
-
-
-
 
 
 
@@ -193,7 +227,7 @@ view model =
         viewPage page toMsg config =
             let
                 { title, body } =
-                    Page.view  page config
+                    Page.view (Session.viewer (toSession model)) page config
             in
             { title = title
             , body = List.map (Html.map toMsg) body
@@ -213,7 +247,10 @@ view model =
             viewPage Page.AddCard GotAddCardMsg (AddCard.view mpage)
 
         Login login ->
-            viewPage Page.Login GotLoginMsg (Login.view login)
+            viewPage Page.Other GotLoginMsg (Login.view login)
 
-        -- AboutUs aboutUs ->
-        --     viewPage Page.Other GotAboutUsMsg (AboutUs.view aboutUs)
+        Profile profile ->
+            viewPage Page.Profile GotProfileMsg (Profile.view profile)
+
+        About about ->
+            viewPage Page.Other GotAboutMsg (About.view about)

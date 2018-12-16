@@ -16,9 +16,11 @@
             "elm/json": "1.0.0",
             "elm/url": "1.0.0",
             "lukewestby/elm-http-builder": "6.0.0",
+            "rundis/elm-bootstrap": "5.0.0",
             "zwilias/elm-utf-tools": "2.0.1"
         },
         "indirect": {
+            "avh4/elm-color": "1.0.0",
             "elm/time": "1.0.0",
             "elm/virtual-dom": "1.0.2",
             "myrho/elm-round": "1.0.4"
