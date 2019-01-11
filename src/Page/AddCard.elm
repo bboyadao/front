@@ -1,7 +1,7 @@
 port module Page.AddCard exposing (Model, Msg(..), init, subscriptions, toSession, update, view)
 
 import Api exposing (Cred)
-import Api.Endpoint as Endpoint exposing (Endpoint(..), card_final, final, tran, url_transcard)
+import Api.Endpoint as Endpoint exposing (Endpoint(..), card_final, config_addcard, final, tran, url_transcard)
 import Browser.Navigation as Nav
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (spanishLocale, usLocale)
@@ -25,6 +25,13 @@ port exchangetoken : (String -> msg) -> Sub msg
 -- MODEL
 
 
+type alias Card =
+    { name : String
+    , code : String
+    , values : List String
+    }
+
+
 type alias Model =
     { session : Session
     , token : String
@@ -42,16 +49,17 @@ type alias Model =
     , captcha_txt : String
     , finalresult : String
     , errorMsg : String
+    , card : List Card
     }
 
 
-init : Session -> ( Model, Cmd msg )
+init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
       , token = ""
       , message = "MFFFfffffff"
       , arrayvalue = [ "10000", "20000", "50000", "100000", "1000000", "10000000" ]
-      , arraycardtype = [ "Viettel", "Vina", "50000", "100000", "1000000", "10000000" ]
+      , arraycardtype = [ "Viettel", "Vina", "Mobi", "Vtc" ]
       , card_value = "10000"
       , card_type = "Viettel"
       , seri = ""
@@ -63,13 +71,24 @@ init session =
       , valid_in = ""
       , finalresult = ""
       , errorMsg = ""
+      , card = [ { name = "", code = "", values = [ "" ] } ]
       }
-    , Cmd.none
+    , Api.get Endpoint.config_addcard (Session.cred session) cardListDecoder
+        |> Http.send GetConfig
     )
 
 
+cardListDecoder : Decoder (List Card)
+cardListDecoder =
+    Decode.list cardDecoder
 
--- UPDATE
+
+cardDecoder : Decoder Card
+cardDecoder =
+    Decode.succeed Card
+        |> required "name_service" Decode.string
+        |> required "mon_id" Decode.string
+        |> required "value" (Decode.list Decode.string)
 
 
 type Msg
@@ -84,115 +103,37 @@ type Msg
     | GetCaptcha (Result Http.Error { img : String, url : String })
     | GotToken String
     | SubmitCaptcha Cred
-
-
-
--- submitCardCmd : Model -> Cmd Msg
--- submitCardCmd model =
---     HttpBuilder.post tran
---         |> withHeaders
---             [ ( "Authorization", "Token " ++ model.token )
---             , ( "Accept", "application/json" )
---             ]
---         |> withJsonBody (encodecard model)
---         |> withTimeout 10000
---         |> withExpectJson decodeResultCaptcha
---         |> withCredentials
---         |> HttpBuilder.send GetCaptcha
-
-
-submitCardCmd : Model -> Cred -> Cmd Msg
-submitCardCmd model cred =
-    let
-        bod =
-            Encode.object
-                [ ( "card_type", Encode.string model.card_type )
-                , ( "value", Encode.string model.card_value )
-                , ( "serial", Encode.string model.seri )
-                , ( "code", Encode.string model.code )
-                ]
-                |> Http.jsonBody
-    in
-    decodeResultCaptcha
-        |> Api.post Endpoint.tran (Just cred) bod
-        |> Http.send GetCaptcha
-
-
-submitcaptcha : Model -> Cred -> Cmd Msg
-submitcaptcha model cred =
-    let
-        bod =
-            Encode.object
-                [ ( "captcha_txt", Encode.string model.captcha_csrf )
-                ]
-                |> Http.jsonBody
-    in
-    decodeResultCaptchaFinal
-        |> Api.post (Endpoint.card_final model.valid_in) (Just cred) bod
-        |> Debug.log "SASASASA"
-        |> Http.send FinalResult
-
-
-decodeResultCaptcha : Decoder { img : String, url : String }
-decodeResultCaptcha =
-    Decode.map2 (\img url -> { img = img, url = url })
-        (Decode.at [ "captcha", "captcha_img" ] Decode.string)
-        (Decode.at [ "valid_in" ] Decode.string)
-
-
-encodecaptchafinal : Model -> Encode.Value
-encodecaptchafinal model =
-    Encode.object
-        [ ( "captcha_txt", Encode.string model.captcha_csrf )
-        ]
-
-
-
--- submitcaptcha : Model -> Cmd Msg
--- submitcaptcha model =
---     HttpBuilder.post (final ++ model.valid_in ++ "/")
---         |> withHeaders
---             [ ( "Authorization", "Token " ++ model.token )
---             , ( "Accept", "application/json" )
---             ]
---         |> withJsonBody (encodecaptchafinal model)
---         |> withTimeout 10000
---         |> withExpectJson decodeResultCaptchaFinal
---         |> withCredentials
---         |> HttpBuilder.send FinalResult
-
-
-decodeResultCaptchaFinal : Decoder String
-decodeResultCaptchaFinal =
-    Decode.at [ "finalresult" ] Decode.string
-
-
-getCaptchaCompleted : Model -> Result Http.Error { img : String, url : String } -> ( Model, Cmd Msg )
-getCaptchaCompleted model result =
-    case result of
-        Ok sometext ->
-            ( { model | captcha_img = sometext.img, valid_in = sometext.url }
-              --  |> Debug.log "got you"
-            , Cmd.none
-            )
-
-        Err error ->
-            ( { model | errorMsg = httpErrorString error }, Cmd.none )
-
-
-encodecard : Model -> Encode.Value
-encodecard model =
-    Encode.object
-        [ ( "card_type", Encode.string model.card_type )
-        , ( "value", Encode.string model.card_value )
-        , ( "serial", Encode.string model.seri )
-        , ( "code", Encode.string model.code )
-        ]
+    | GetConfig (Result Http.Error (List Card))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GetConfig (Err val) ->
+            ( { model | errorMsg = httpErrorString val }, Cmd.none )
+
+        -- GetConfig (Ok val) ->
+        --     ( model, Cmd.none )
+        GetConfig (Ok val) ->
+            let
+                cards =
+                    model.card
+
+                mapcard item =
+                    { item
+                        | name = item.name
+                        , code = item.code
+                        , values = item.values
+                    }
+
+                newcard =
+                    List.map mapcard cards
+
+                result =
+                    { model | card = newcard }
+            in
+            ( result |> Debug.log "new", Cmd.none )
+
         ChangeCaptcha capt ->
             ( { model | captcha_txt = capt }, Cmd.none )
 
@@ -226,6 +167,80 @@ update msg model =
 
         NoOp ->
             ( model, Cmd.none )
+
+
+submitCardCmd : Model -> Cred -> Cmd Msg
+submitCardCmd model cred =
+    let
+        bod =
+            Encode.object
+                [ ( "card_type", Encode.string model.card_type )
+                , ( "value", Encode.string model.card_value )
+                , ( "serial", Encode.string model.seri )
+                , ( "code", Encode.string model.code )
+                ]
+                |> Http.jsonBody
+    in
+    decodeResultCaptcha
+        |> Api.post Endpoint.tran (Just cred) bod
+        |> Http.send GetCaptcha
+
+
+submitcaptcha : Model -> Cred -> Cmd Msg
+submitcaptcha model cred =
+    let
+        bod =
+            Encode.object
+                [ ( "captcha_txt", Encode.string model.captcha_csrf )
+                ]
+                |> Http.jsonBody
+    in
+    decodeResultCaptchaFinal
+        |> Api.post (Endpoint.card_final model.valid_in) (Just cred) bod
+        -- |> Debug.log "SASASASA"
+        |> Http.send FinalResult
+
+
+decodeResultCaptcha : Decoder { img : String, url : String }
+decodeResultCaptcha =
+    Decode.map2 (\img url -> { img = img, url = url })
+        (Decode.at [ "captcha", "captcha_img" ] Decode.string)
+        (Decode.at [ "valid_in" ] Decode.string)
+
+
+encodecaptchafinal : Model -> Encode.Value
+encodecaptchafinal model =
+    Encode.object
+        [ ( "captcha_txt", Encode.string model.captcha_csrf )
+        ]
+
+
+decodeResultCaptchaFinal : Decoder String
+decodeResultCaptchaFinal =
+    Decode.at [ "finalresult" ] Decode.string
+
+
+getCaptchaCompleted : Model -> Result Http.Error { img : String, url : String } -> ( Model, Cmd Msg )
+getCaptchaCompleted model result =
+    case result of
+        Ok sometext ->
+            ( { model | captcha_img = sometext.img, valid_in = sometext.url }
+              --  |> Debug.log "got you"
+            , Cmd.none
+            )
+
+        Err error ->
+            ( { model | errorMsg = httpErrorString error }, Cmd.none )
+
+
+encodecard : Model -> Encode.Value
+encodecard model =
+    Encode.object
+        [ ( "card_type", Encode.string model.card_type )
+        , ( "value", Encode.string model.card_value )
+        , ( "serial", Encode.string model.seri )
+        , ( "code", Encode.string model.code )
+        ]
 
 
 
@@ -307,12 +322,19 @@ someview model cred =
                                 [ text "Xác Nhận" ]
                             ]
                         ]
-                    , div [ class "footer" ]
-                        []
+                    , div [ class "footer" ] <| List.map viewItem model.card
+                    , div [ class "footer" ] [ text model.token ]
                     ]
                 , stylesheet
                 ]
             ]
+        ]
+
+
+viewItem : Card -> Html Msg
+viewItem card =
+    li []
+        [ text card.name
         ]
 
 

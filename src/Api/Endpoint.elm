@@ -6,16 +6,17 @@ module Api.Endpoint exposing
     , final
     , gotoMainsite
     , login
+    , login_url
     , profiles
     , request
     , root_url
+    , signup_url
     , tags
     , tran
-    , url_login
-    , url_signup
     , url_transcard
     , user
     , users
+    ,config_addcard
     )
 
 import Browser.Navigation as Nav exposing (load)
@@ -59,6 +60,17 @@ type Endpoint
     = Endpoint String
 
 
+
+
+
+root_url : String
+root_url =
+    -- "https://adaostore.herokuapp.com"
+    "http://localhost:8000"
+
+
+
+
 unwrap : Endpoint -> String
 unwrap (Endpoint str) =
     str
@@ -66,19 +78,37 @@ unwrap (Endpoint str) =
 
 url : List String -> List QueryParameter -> Endpoint
 url paths queryParams =
-    Url.Builder.crossOrigin "http://localhost:8000"
+    Url.Builder.crossOrigin root_url
         ("api/v1" :: paths)
         queryParams
         |> Endpoint
 
 
+gotoMainsite : Cmd msg
+gotoMainsite =
+    load root_url
+
+
 
 -- ENDPOINTS
+
+config_addcard : Endpoint
+config_addcard =
+    url [ "tran", "config/" ] []
+
+signup_url : Endpoint
+signup_url =
+    url [ "account", "signup/" ] []
+
+
+login_url : Endpoint
+login_url =
+    url [ "account", "login/" ] []
 
 
 tran : Endpoint
 tran =
-    url [ "tran/" ] []
+    url [ "tran","addcard/" ] []
 
 
 card_final : String -> Endpoint
@@ -88,17 +118,17 @@ card_final valid_id =
 
 login : Endpoint
 login =
-    url [ "users", "login" ] []
+    url [ "users", "login/" ] []
 
 
 user : Endpoint
 user =
-    url [ "account" ] []
+    url [ "account/" ] []
 
 
 users : Endpoint
 users =
-    url [ "users" ] []
+    url [ "users/" ] []
 
 
 
@@ -137,21 +167,6 @@ tags =
     url [ "tags" ] []
 
 
-root_url : String
-root_url =
-    "http://localhost:8000/api/v1/"
-
-
-url_login : String
-url_login =
-    root_url ++ "account/login/"
-
-
-url_signup : String
-url_signup =
-    root_url ++ "account/signup/"
-
-
 url_transcard : String
 url_transcard =
     root_url ++ "trans/"
@@ -160,8 +175,3 @@ url_transcard =
 final : String
 final =
     root_url ++ "final/"
-
-
-gotoMainsite : Cmd msg
-gotoMainsite =
-    load "http://localhost:8000/"

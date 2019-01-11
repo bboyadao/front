@@ -156,14 +156,15 @@ httpErrorString error =
             "Network Error"
 
         Http.BadStatus response ->
-            "Invalid Cridential!" ++ Debug.toString response.body
+            "Invalid Cridential!" 
+            -- ++ Debug.toString response.body
 
         Http.BadPayload message response ->
             "Bad Http Payload: "
-                ++ Debug.toString message
-                ++ " ("
-                ++ Debug.toString response.status.code
-                ++ ")"
+                -- ++ Debug.toString message
+                -- ++ " ("
+                -- ++ Debug.toString response.status.code
+                -- ++ ")"
 
 
 

@@ -16,11 +16,12 @@ httpErrorString error =
             "Network Error"
 
         BadStatus response ->
-            "Invalid Cridential!" ++ Debug.toString response.body
+            "Invalid Cridential!"
+            --  ++ Debug.toString response.body
 
         BadPayload message response ->
             "Bad Http Payload: "
-                ++ Debug.toString message
-                ++ " ("
-                ++ Debug.toString response.status.code
-                ++ ")"
+                -- ++ Debug.toString message
+                -- ++ " ("
+                -- ++ Debug.toString response.status.code
+                -- ++ ")"

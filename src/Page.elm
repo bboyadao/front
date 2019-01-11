@@ -22,24 +22,6 @@ type Page
 
 
 
--- | AboutUs
--- isActive : Page -> Route -> Bool
--- isActive page route =
---     case ( page, route ) of
---         ( Home, Route.Home ) ->
---             True
---         ( Login, Route.Login ) ->
---             True
---         ( Register, Route.Register ) ->
---             True
---         ( Settings, Route.Settings ) ->
---             True
---         ( Profile pageUsername, Route.Profile routeUsername ) ->
---             pageUsername == routeUsername
---         ( NewArticle, Route.NewArticle ) ->
---             True
---         _ ->
---             False
 -- VIEW
 
 
@@ -53,8 +35,7 @@ view maybeviewer page { title, content } =
 navbar : Page -> Route -> List (Html msg) -> Html msg
 navbar page route linkContent =
     div []
-        [ -- a [ class "mdl-navigation__link", Route.href route] linkContent]
-          a
+        [ a
             [ classList
                 [ ( "mdl-navigation__link", True )
                 , ( "active", isActive page route )
@@ -98,17 +79,22 @@ viewMenu page maybeviewer =
 
 viewHeader : Page -> Maybe Viewer -> Html msg
 viewHeader page maybeviewer =
-    header [ class "mdl-layout__header mdl-layout__header--transparent" ]
+    header [ class "mdl-layout--fixed-header" ]
         [ div [ class "mdl-layout__header-row" ]
             [ span [ class "mdl-layout-title" ]
                 [ navbar page Route.Home [ text "Home" ] ]
             , div [ class "mdl-layout-spacer" ] []
-            , nav [ class "mdl-navigation mdl-layout--large-screen-only" ] <|
+            , nav [ class "mdl-navigation" ] <|
                 viewMenu page maybeviewer
 
             -- nav
             ]
         ]
+
+
+
+-- "mdl-textfield mdl-js-textfield mdl-textfield--expandable
+--                   mdl-textfield--floating-label mdl-textfield--align-right"
 
 
 viewFooter : Html msg

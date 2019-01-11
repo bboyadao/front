@@ -1,24 +1,26 @@
 port module Api exposing
     ( Cred(..)
     , application
-    , login    
+    , get
+    , httpErrorString
+    , login
+    , post
     , storeCredWith
     , username
     , viewerChanges
-    , get
-    , post
     )
-    
+
 import Api.Endpoint as Endpoint exposing (Endpoint)
 import Avatar exposing (Avatar)
 import Browser
 import Browser.Navigation as Nav exposing (load)
-import Http exposing (Body, Expect)
+import Http exposing (Body, Error(..), Expect)
 import Json.Decode as Decode exposing (..)
 import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
 import Url exposing (Url)
 import Username exposing (Username)
+
 
 credHeader : Cred -> Http.Header
 credHeader (Cred _ str) =
@@ -154,7 +156,7 @@ application viewerDecoder config =
 
 login : Http.Body -> Decoder (Cred -> a) -> Http.Request a
 login body decoder =
-    post Endpoint.login Nothing body (Decode.field "user" (decoderFromCred decoder))
+    post Endpoint.login_url Nothing body (Decode.field "user" (decoderFromCred decoder))
 
 
 post : Endpoint -> Maybe Cred -> Body -> Decoder a -> Http.Request a
@@ -176,12 +178,6 @@ post url maybeCred body decoder =
         }
 
 
-
-
-
-
-
-
 get : Endpoint -> Maybe Cred -> Decoder a -> Http.Request a
 get url maybeCred decoder =
     Endpoint.request
@@ -201,4 +197,21 @@ get url maybeCred decoder =
         }
 
 
+httpErrorString : Http.Error -> String
+httpErrorString error =
+    case error of
+        BadUrl text ->
+            "Bad Url: " ++ text
 
+        Timeout ->
+            "Http Timeout"
+
+        NetworkError ->
+            "Network Error"
+
+        BadStatus response ->
+            "Invalid Cridential!"
+
+        -- ++ Debug.toString response.body
+        BadPayload message response ->
+            "Bad Http Payload: "

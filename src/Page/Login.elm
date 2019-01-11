@@ -1,7 +1,7 @@
 port module Page.Login exposing (Model, Msg(..), init, subscriptions, toSession, update, view)
 
-import Api exposing (Cred(..))
-import Api.Endpoint exposing (gotoMainsite, root_url, url_login, url_signup)
+import Api exposing (Cred(..), httpErrorString)
+import Api.Endpoint as Endpoint exposing (gotoMainsite, login, root_url)
 import Avatar exposing (Avatar(..))
 import Browser
 import Browser.Navigation exposing (load)
@@ -17,6 +17,34 @@ import Route exposing (Route)
 import Session exposing (Session)
 import Username exposing (Username(..))
 import Viewer exposing (Viewer(..))
+
+
+
+-- MODEL
+
+
+type alias Errors =
+    { username : String
+    , password : String
+    , non_field_errors : String
+    }
+
+
+type alias Model =
+    { session : Session
+    , container_active : Bool
+    , username : String
+    , ava : Maybe String
+    , email : String
+    , balance : Int
+    , is_superuser : Bool
+    , is_staff : Bool
+    , is_active : Bool
+    , token : String
+    , password : String
+    , passwordAgain : String
+    , errorMsg : String
+    }
 
 
 init : Session -> ( Model, Cmd msg )
@@ -49,54 +77,41 @@ usersignupEncoder model =
         ]
 
 
-userEncoder : Model -> Encode.Value
-userEncoder model =
-    Encode.object
-        [ ( "username", Encode.string model.username )
-        , ( "password", Encode.string model.password )
-        ]
-
-
-toSession : Model -> Session
-toSession model =
-    model.session
-
-
-signupUser : Model -> String -> Http.Request String
-signupUser model apiUrl =
+signupUser : Model -> Cmd Msg
+signupUser model =
     let
-        body =
-            model
-                |> usersignupEncoder
+        bod =
+            Encode.object
+                [ ( "username", Encode.string model.username )
+                , ( "email", Encode.string model.email )
+                , ( "password1", Encode.string model.password )
+                , ( "password2", Encode.string model.passwordAgain )
+                ]
                 |> Http.jsonBody
     in
-    Http.post apiUrl body userDecoder
+    userDecoder
+        |> Api.post Endpoint.signup_url Nothing bod
+        |> Http.send GetTokenCompleted
 
 
-authUser : Model -> String -> Http.Request String
-authUser model apiUrl =
+authUser : Model -> Cmd Msg
+authUser model =
     let
-        body =
-            model
-                |> userEncoder
+        bod =
+            Encode.object
+                [ ( "username", Encode.string model.username )
+                , ( "password", Encode.string model.password )
+                ]
                 |> Http.jsonBody
     in
-    Http.post apiUrl body userDecoder
+    userDecoder
+        |> Api.post Endpoint.login_url Nothing bod
+        |> Http.send GetTokenCompleted
 
 
 userDecoder : Decoder String
 userDecoder =
     Decode.field "token" Decode.string
-
-
-signupCmd : Model -> String -> Cmd Msg
-signupCmd model apiUrl =
-    Http.send GetTokenCompleted (signupUser model apiUrl)
-
-
-authUserCmd : Model -> String -> Cmd Msg
-authUserCmd model apiUrl =
-    Http.send GetTokenCompleted (authUser model apiUrl)
 
 
 getTokenCompleted : Model -> Result Http.Error String -> ( Model, Cmd Msg )
@@ -107,19 +122,10 @@ getTokenCompleted model result =
                 withToken =
                     { model | token = some_token }
             in
-            ( withToken |> Debug.log "got new token"
-            , Cmd.batch
-                [ -- storeCredWith withToken
-                  Viewer.store <| convert <| withToken
-
-                -- ,gotoMainsite
-                ]
+            ( model
+            , Viewer.store <| convert <| withToken
             )
 
-        -- {
-        --     model | token = some_token
-        -- }|> Debug.log "got new token"
-        -- ,storeCredWith model
         Err error ->
             ( { model | errorMsg = httpErrorString error }, Cmd.none )
 
@@ -139,65 +145,9 @@ convert model =
     Viewer ava cred
 
 
-httpErrorString : Error -> String
-httpErrorString error =
-    case error of
-        BadUrl text ->
-            "Bad Url: " ++ text
-
-        Timeout ->
-            "Http Timeout"
-
-        NetworkError ->
-            "Network Error"
-
-        BadStatus response ->
-            "Invalid Cridential!"
-
-        -- ++ Debug.toString response.body
-        BadPayload message response ->
-            "Bad Http Payload: "
-
-
-
--- ++ Debug.toString message
--- ++ " ("
--- ++ Debug.toString response.status.code
--- ++ ")"
---SUB
-
-
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Session.changes GotSession (Session.navKey model.session)
-
-
-
--- MODEL
-
-
-type alias Errors =
-    { username : String
-    , password : String
-    , non_field_errors : String
-    }
-
-
-type alias Model =
-    { session : Session
-    , container_active : Bool
-    , username : String
-    , ava : Maybe String
-    , email : String
-    , balance : Int
-    , is_superuser : Bool
-    , is_staff : Bool
-    , is_active : Bool
-    , token : String
-    , password : String
-    , passwordAgain : String
-    , errorMsg : String
-    }
 
 
 
@@ -212,8 +162,6 @@ type Msg
     | ClickLogin
     | ClickSignup
     | GetTokenCompleted (Result Http.Error String)
-      --   | SetToken String
-    | GotoMainsite
     | Addclass_active
     | Addclass_close
     | GotSession Session
@@ -227,17 +175,14 @@ update msg model =
             , Route.replaceUrl (Session.navKey session) Route.Home
             )
 
-        GotoMainsite ->
-            ( model, gotoMainsite )
-
         ClickLogin ->
-            ( { model | errorMsg = "" }, authUserCmd model url_login )
+            ( { model | errorMsg = "" }
+            , authUser model
+            )
 
         ClickSignup ->
-            ( { model | errorMsg = "" }, signupCmd model url_signup )
+            ( { model | errorMsg = "" }, signupUser model )
 
-        -- SetToken str ->
-        --     ({model | token =str},Cmd.none)
         SetUsername name ->
             ( { model | username = name }, Cmd.none )
 
@@ -296,9 +241,8 @@ login_page model =
             , ( "active", model.container_active )
             ]
         ]
-        [ 
-            -- stylesheet
-         div [ class "card" ] []
+        [ -- stylesheet
+          div [ class "card" ] []
         , div [ class "card" ]
             [ h1 [ class "title" ]
                 [ text "Đăng Nhập" ]
@@ -434,3 +378,8 @@ login_page model =
 proFile : Model -> Html Msg
 proFile model =
     div [] []
+
+
+toSession : Model -> Session
+toSession model =
+    model.session
