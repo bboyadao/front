@@ -7,12 +7,14 @@ import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (spanishLocale, usLocale)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (..)
+import Html.Events exposing (on, onClick, onInput, targetValue)
+import Html.Events.Extra exposing (onChange)
 import Http exposing (..)
 import HttpBuilder exposing (..)
-import Json.Decode as Decode exposing (Decoder, field, map3, string)
+import Json.Decode as Decode exposing (Decoder, field, map, map3, string)
 import Json.Decode.Pipeline as JPipeline exposing (hardcoded, optional, required, requiredAt)
 import Json.Encode as Encode exposing (..)
+import List.Extra exposing (getAt)
 import Route exposing (Route)
 import Session exposing (Session)
 import Utils exposing (httpErrorString)
@@ -49,7 +51,9 @@ type alias Model =
     , captcha_txt : String
     , finalresult : String
     , errorMsg : String
-    , card : List Card
+    , cards : List Card
+    , card : Card
+    , selected_card : String
     }
 
 
@@ -57,11 +61,11 @@ init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
       , token = ""
-      , message = "MFFFfffffff"
-      , arrayvalue = [ "10000", "20000", "50000", "100000", "1000000", "10000000" ]
-      , arraycardtype = [ "Viettel", "Vina", "Mobi", "Vtc" ]
-      , card_value = "10000"
-      , card_type = "Viettel"
+      , message = "messsssssss"
+      , arraycardtype = [ "viettel" ]
+      , arrayvalue = [ "100000" ]
+      , card_value = ""
+      , card_type = ""
       , seri = ""
       , code = ""
       , captcha_csrf = ""
@@ -71,7 +75,9 @@ init session =
       , valid_in = ""
       , finalresult = ""
       , errorMsg = ""
-      , card = [ { name = "", code = "", values = [ "" ] } ]
+      , cards = []
+      , card = { name = "", code = "", values = [] }
+      , selected_card = ""
       }
     , Api.get Endpoint.config_addcard (Session.cred session) cardListDecoder
         |> Http.send GetConfig
@@ -96,6 +102,8 @@ type Msg
     | ChangeCaptcha String
     | ChangeValueMsg String
     | ChangeCardTypeMsg String
+    | Value_Follow_Card_Type_Msg String
+    | Update_User_Selected_Card (List String)
     | ChangeSeri String
     | ChangeCode String
     | SubmitCard Cred
@@ -119,21 +127,22 @@ update msg model =
                 cards =
                     model.card
 
-                mapcard item =
-                    { item
-                        | name = item.name
-                        , code = item.code
-                        , values = item.values
+                mapcard card =
+                    { card
+                        | name = card.name
+                        , code = card.code
+                        , values = card.values
                     }
 
                 newcard =
-                    List.map mapcard cards
+                    List.map mapcard val
 
-                result =
-                    { model | card = newcard }
+                -- result =
+                --     { model | card = newcard }
             in
-            ( result |> Debug.log "new", Cmd.none )
+            ( { model | cards = newcard }, Cmd.none )
 
+        -- ( result |> Debug.log "new", Cmd.none )
         ChangeCaptcha capt ->
             ( { model | captcha_txt = capt }, Cmd.none )
 
@@ -156,8 +165,14 @@ update msg model =
         ChangeCardTypeMsg str ->
             ( { model | card_type = str }, Cmd.none )
 
+        Value_Follow_Card_Type_Msg value ->
+            find_card_by_name value model
+
         ChangeValueMsg str ->
             ( { model | card_value = str }, Cmd.none )
+
+        Update_User_Selected_Card values ->
+            ( { model | arrayvalue = values }, Cmd.none )
 
         ChangeSeri str ->
             ( { model | seri = str }, Cmd.none )
@@ -197,7 +212,6 @@ submitcaptcha model cred =
     in
     decodeResultCaptchaFinal
         |> Api.post (Endpoint.card_final model.valid_in) (Just cred) bod
-        -- |> Debug.log "SASASASA"
         |> Http.send FinalResult
 
 
@@ -287,76 +301,6 @@ view model =
     }
 
 
-someview : Model -> Cred -> Html Msg
-someview model cred =
-    main_ [ class "mdl-layout__content" ]
-        [ div [ class "page-content" ]
-            [ div [ class "card" ] []
-            , div [ class "card" ]
-                [ h1 [ class "title" ]
-                    [ text "Vui Lòng Nhập Mã Bảo Mật" ]
-                , div []
-                    [ img
-                        [ class "img_captcha"
-                        , src model.captcha_img
-                        ]
-                        []
-                    , div [ class "input-container" ]
-                        [ input
-                            [ id "seri"
-                            , attribute "required" "required"
-                            , autocomplete False
-                            , onInput ChangeCaptcha
-                            ]
-                            []
-                        , label [ for "seri" ]
-                            [ text "Mã Bảo Mật" ]
-                        , div [ class "bar" ]
-                            []
-                        ]
-                    , div [ class "button-container" ]
-                        [ button
-                            [ onClick (SubmitCaptcha cred)
-                            ]
-                            [ span []
-                                [ text "Xác Nhận" ]
-                            ]
-                        ]
-                    , div [ class "footer" ] <| List.map viewItem model.card
-                    , div [ class "footer" ] [ text model.token ]
-                    ]
-                , stylesheet
-                ]
-            ]
-        ]
-
-
-viewItem : Card -> Html Msg
-viewItem card =
-    li []
-        [ text card.name
-        ]
-
-
-viewOptionvalue : String -> String -> Html Msg
-viewOptionvalue selectedString op =
-    option [ Html.Attributes.value op ]
-        [ op
-            |> String.toFloat
-            |> Maybe.withDefault 0
-            |> format { usLocale | decimals = 0, thousandSeparator = "." }
-            |> text
-        ]
-
-
-viewOptionCardType : String -> String -> Html Msg
-viewOptionCardType selectedString op =
-    option [ Html.Attributes.value op ]
-        [ op
-            |> text
-        ]
-
-
 content_view : Model -> Cred -> Html Msg
 content_view model cred =
     main_ [ class "mdl-layout__content" ]
@@ -365,19 +309,17 @@ content_view model cred =
             , div [ class "card" ]
                 [ h1 [ class "title" ]
                     [ text "Nạp Thẻ" ]
-
-                -- ,h4[] [text  model.token ]
-                , div []
+                , h4 [] [ text model.token ]
+                , div [ class "wrap" ]
                     [ div [ class "input-container" ]
+                        -- https://ellie-app.com/kcF6mQRvNQa1
                         [ select
-                            [ id "value"
+                            [ id "card-name"
                             , class "myselect"
-                            , onInput ChangeValueMsg
+                            , onChange Value_Follow_Card_Type_Msg
                             ]
-                            (List.map
-                                (viewOptionCardType model.card_type)
-                                model.arraycardtype
-                            )
+                          <|
+                            List.map cardnameview model.cards
                         ]
                     , div [ class "input-container" ]
                         [ select
@@ -386,11 +328,9 @@ content_view model cred =
                             , onInput ChangeCardTypeMsg
                             ]
                             (List.map
-                                (viewOptionvalue model.card_value)
+                                viewOptionvalue
                                 model.arrayvalue
                             )
-
-                        -- https://ellie-app.com/kcF6mQRvNQa1
                         ]
                     , div [ class "input-container" ]
                         [ input
@@ -426,12 +366,124 @@ content_view model cred =
                                 [ text "Nạp Thẻ" ]
                             ]
                         ]
-                    , div [ class "footer" ]
-                        []
+                    , div [ class "footer" ] []
                     ]
                 , stylesheet
                 ]
             ]
+        ]
+
+
+cardnameview : Card -> Html Msg
+cardnameview card =
+    option
+        [ -- Html.Attributes.selected True
+          Html.Attributes.value card.name
+        ]
+        [ card.name |> text ]
+
+
+cardviewvalues : Card -> Html Msg
+cardviewvalues card =
+    select
+        [ id "card-values"
+        , class "myselect"
+        ]
+    <|
+        List.map
+            optgroupView
+            card.values
+
+
+optgroupView : String -> Html Msg
+optgroupView value =
+    optgroup [] <| [ viewOptionvalue value ]
+
+
+viewOptionvalue : String -> Html Msg
+viewOptionvalue op =
+    option [ Html.Attributes.value op ]
+        [ op
+            |> String.toFloat
+            |> Maybe.withDefault 0
+            |> format { usLocale | decimals = 0, thousandSeparator = "." }
+            |> text
+        ]
+
+
+updateArrayValues : Card -> Model -> ( Model, Cmd Msg )
+updateArrayValues card model =
+    ( { model | arrayvalue = card.values }, Cmd.none )
+
+
+showNestValues : String -> Html Msg
+showNestValues value =
+    option [ Html.Attributes.value value ]
+        [ value
+            |> String.toFloat
+            |> Maybe.withDefault 0
+            |> format { usLocale | decimals = 0, thousandSeparator = "." }
+            |> text
+        ]
+
+
+supportCardName : Card -> Html Msg
+supportCardName card =
+    option
+        [ Html.Attributes.value card.name ]
+        [ card.name
+            |> text
+        ]
+
+
+someview : Model -> Cred -> Html Msg
+someview model cred =
+    main_ [ class "mdl-layout__content" ]
+        [ div [ class "page-content" ]
+            [ div [ class "card" ] []
+            , div [ class "card" ]
+                [ h1 [ class "title" ]
+                    [ text "Vui Lòng Nhập Mã Bảo Mật" ]
+                , div []
+                    [ img
+                        [ class "img_captcha"
+                        , src model.captcha_img
+                        ]
+                        []
+                    , div [ class "input-container" ]
+                        [ input
+                            [ id "seri"
+                            , attribute "required" "required"
+                            , autocomplete False
+                            , onInput ChangeCaptcha
+                            ]
+                            []
+                        , label [ for "seri" ]
+                            [ text "Mã Bảo Mật" ]
+                        , div [ class "bar" ]
+                            []
+                        ]
+                    , div [ class "button-container" ]
+                        [ button
+                            [ onClick (SubmitCaptcha cred)
+                            ]
+                            [ span []
+                                [ text "Xác Nhận" ]
+                            ]
+                        ]
+                    , div [ class "footer" ] []
+                    ]
+                , stylesheet
+                ]
+            ]
+        ]
+
+
+viewOptionCardType : String -> String -> Html Msg
+viewOptionCardType selectedString op =
+    option [ Html.Attributes.value op ]
+        [ op
+            |> text
         ]
 
 
@@ -450,3 +502,17 @@ stylesheet =
             []
     in
     node tag attrs children
+
+
+find_card_by_name : String -> Model -> ( Model, Cmd Msg )
+find_card_by_name cardname model =
+    let
+        findcard =
+            List.head (List.filter (\m -> m.name == cardname) model.cards)
+    in
+    case findcard of
+        Just card ->
+            ( { model | arrayvalue = card.values }, Cmd.none )
+
+        _ ->
+            ( model, Cmd.none )
