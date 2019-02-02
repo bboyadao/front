@@ -215,3 +215,7 @@ httpErrorString error =
         -- ++ Debug.toString response.body
         BadPayload message response ->
             "Bad Http Payload: "
+                ++ Debug.toString message
+                ++ " ("
+                ++ Debug.toString response.status.code
+                ++ ")"

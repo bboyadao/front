@@ -88,6 +88,9 @@ subscriptions model =
         NotFound _ ->
             Sub.none
 
+        About about ->
+            Sub.map GotAboutMsg (About.subscriptions about)
+
         Profile profile ->
             Sub.map GotProfileMsg (Profile.subscriptions profile)
 
@@ -100,8 +103,10 @@ subscriptions model =
         Login login ->
             Sub.map GotLoginMsg (Login.subscriptions login)
 
-        _ ->
-            Sub.none
+
+
+-- _ ->
+--     Sub.none
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -211,6 +216,10 @@ update msg model =
         ( GotAddCardMsg subMsg, AddCard addcard ) ->
             AddCard.update subMsg addcard
                 |> updateWith AddCard GotAddCardMsg model
+
+        ( GotAboutMsg aboutMsg, About about ) ->
+            About.update aboutMsg about
+                |> updateWith About GotAboutMsg model
 
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.

@@ -1,12 +1,15 @@
 module Api.Endpoint exposing
     ( Endpoint
+    , addBank_url
     , articles
     , card_final
+    , config_addcard
     , feed
     , final
     , gotoMainsite
     , login
     , login_url
+    , myRedirect
     , profiles
     , request
     , root_url
@@ -16,7 +19,6 @@ module Api.Endpoint exposing
     , url_transcard
     , user
     , users
-    ,config_addcard
     )
 
 import Browser.Navigation as Nav exposing (load)
@@ -60,15 +62,14 @@ type Endpoint
     = Endpoint String
 
 
-
-
-
 root_url : String
 root_url =
     -- "https://adaostore.herokuapp.com"
     "http://localhost:8000"
 
 
+
+-- "http://chuthe.com"
 
 
 unwrap : Endpoint -> String
@@ -90,11 +91,27 @@ gotoMainsite =
 
 
 
+-- Cmd redirect
+
+
+myRedirect : Endpoint -> Cmd msg
+myRedirect redirect_url =
+    load (redirect_url |> unwrap)
+
+
+
 -- ENDPOINTS
+
+
+addBank_url : Endpoint
+addBank_url =
+    url [ "account", "addbank/" ] []
+
 
 config_addcard : Endpoint
 config_addcard =
     url [ "tran", "config/" ] []
+
 
 signup_url : Endpoint
 signup_url =
@@ -108,7 +125,7 @@ login_url =
 
 tran : Endpoint
 tran =
-    url [ "tran","addcard/" ] []
+    url [ "tran", "addcard/" ] []
 
 
 card_final : String -> Endpoint

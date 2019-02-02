@@ -383,26 +383,11 @@ cardnameview card =
         [ card.name |> text ]
 
 
-cardviewvalues : Card -> Html Msg
-cardviewvalues card =
-    select
-        [ id "card-values"
-        , class "myselect"
-        ]
-    <|
-        List.map
-            optgroupView
-            card.values
-
-
-optgroupView : String -> Html Msg
-optgroupView value =
-    optgroup [] <| [ viewOptionvalue value ]
-
 
 viewOptionvalue : String -> Html Msg
 viewOptionvalue op =
-    option [ Html.Attributes.value op ]
+    option [ Html.Attributes.value op
+    ,Html.Attributes.selected True ]
         [ op
             |> String.toFloat
             |> Maybe.withDefault 0

@@ -1,26 +1,35 @@
 module Page.Profile exposing (Model, Msg, init, subscriptions, toSession, update, view)
 
-import Api exposing (..)
+import Api exposing (Cred(..), httpErrorString)
 import Api.Endpoint as Endpoint exposing (Endpoint)
+import Bootstrap.Button as Button exposing (onClick)
 import Bootstrap.CDN as CDN
+import Bootstrap.Grid as Grid exposing (..)
+import Bootstrap.Grid.Col as Col exposing (..)
+import Bootstrap.Modal as Modal exposing (..)
 import Bootstrap.Tab as Tab exposing (..)
 import Bootstrap.Table as Table
+import Browser.Navigation as Nav
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (spanishLocale, usLocale)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import Http
-import Json.Decode as Decode exposing (Decoder, decodeString, field, list, string)
-import Json.Decode.Pipeline exposing (hardcoded, required, requiredAt)
-import Json.Encode exposing (encode, string)
+import Json.Decode as Decode exposing (Decoder, decodeString, field, float, int, list, string)
+import Json.Decode.Pipeline exposing (hardcoded, optional, required, requiredAt)
+import Json.Encode as Encode exposing (..)
+import Route exposing (..)
 import Session exposing (Session)
 import Username exposing (Username)
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Tab.subscriptions model.tabState TabMsg
+    Sub.batch
+        [ Tab.subscriptions model.tabState TabMsg
+        , Modal.subscriptions model.modalVisibility AnimateModal
+        ]
 
 
 toSession : Model -> Session
@@ -30,9 +39,17 @@ toSession model =
 
 type alias Model =
     { session : Session
+    , title : String
     , user : User
+    , modalVisibility : Modal.Visibility
     , tabState : Tab.State
+    , usernamedbank : String
+    , userbankname : String
+    , userbanknumber : String
+    , add_bank_message_successed : Bool
     , errorMsg : String
+    , errorsMsg : List String
+    , form_add_bank : Bool
     }
 
 
@@ -75,46 +92,78 @@ init session =
                   }
                 ]
             }
+      , title = "Trang cá nhân"
+      , modalVisibility = Modal.hidden
       , tabState = Tab.initialState
+      , usernamedbank = ""
+      , userbankname = ""
+      , userbanknumber = ""
+      , add_bank_message_successed = False
       , errorMsg = ""
+      , errorsMsg = []
+      , form_add_bank = False
       }
     , Api.get Endpoint.user (Session.cred session) (Decode.field "user" formDecoder)
         |> Http.send FetchMe
     )
 
 
-formDecoder : Decoder User
-formDecoder =
-    Decode.succeed User
-        |> required "username" Decode.string
-        |> required "balance" Decode.int
-        |> required "email" Decode.string
-        |> required "bank" decodeListBank
-
-
-decodeListBank : Decoder (List Bank)
-decodeListBank =
-    Decode.list bankDecode
-
-
-bankDecode : Decoder Bank
-bankDecode =
-    Decode.succeed Bank
-        |> required "name" Decode.string
-        |> required "bank_name" Decode.string
-        |> required "bank_num" Decode.string
-        |> required "is_activated" Decode.string
-
-
 type Msg
     = NoOp
     | TabMsg Tab.State
     | FetchMe (Result Http.Error User)
+    | ShowFormAddBank
+    | SetNameForBank String
+    | SetBankName String
+    | SetBankNumber String
+    | SubmmitBank Cred
+    | AddBankResult (Result Http.Error Bool)
+    | AnimateModal Modal.Visibility
+    | CloseModal
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        AnimateModal visibility ->
+            ( { model | modalVisibility = visibility }
+            , Cmd.none
+            )
+
+        CloseModal ->
+            ( { model | modalVisibility = Modal.hidden }
+            , Cmd.none
+            )
+
+        AddBankResult (Ok val) ->
+            ( { model
+                | add_bank_message_successed = val
+                , errorsMsg = [ "e1", "e2" ]
+                , modalVisibility = Modal.shown
+              }
+              -- |> Debug.log "check modal: "
+              --   ,Cmd.none
+            , Cmd.batch [ Nav.load <| routeToString <| Route.Profile ]
+            )
+
+        AddBankResult (Err val) ->
+            ( { model | errorMsg = httpErrorString val }, Cmd.none )
+
+        SubmmitBank cred ->
+            ( model, addBank model cred )
+
+        SetNameForBank vl ->
+            ( { model | usernamedbank = vl }, Cmd.none )
+
+        SetBankName vl ->
+            ( { model | userbankname = vl }, Cmd.none )
+
+        SetBankNumber vl ->
+            ( { model | userbanknumber = vl }, Cmd.none )
+
+        ShowFormAddBank ->
+            ( { model | form_add_bank = True }, Cmd.none )
+
         TabMsg state ->
             ( { model | tabState = state }
             , Cmd.none
@@ -143,97 +192,155 @@ update msg model =
             ( model, Cmd.none )
 
 
-httpErrorString : Http.Error -> String
-httpErrorString error =
-    case error of
-        Http.BadUrl text ->
-            "Bad Url: " ++ text
-
-        Http.Timeout ->
-            "Http Timeout"
-
-        Http.NetworkError ->
-            "Network Error"
-
-        Http.BadStatus response ->
-            "Invalid Cridential!" 
-            -- ++ Debug.toString response.body
-
-        Http.BadPayload message response ->
-            "Bad Http Payload: "
-                -- ++ Debug.toString message
-                -- ++ " ("
-                -- ++ Debug.toString response.status.code
-                -- ++ ")"
+addBank : Model -> Cred -> Cmd Msg
+addBank model cred =
+    let
+        bod =
+            Encode.object
+                [ ( "name", Encode.string model.usernamedbank )
+                , ( "bank_name", Encode.string model.userbankname )
+                , ( "bank_num", Encode.string model.userbanknumber )
+                ]
+                |> Http.jsonBody
+    in
+    addBankDecoder
+        |> Api.post Endpoint.addBank_url (Just cred) bod
+        |> Http.send AddBankResult
 
 
+addBankDecoder : Decoder Bool
+addBankDecoder =
+    Decode.field "successed" Decode.bool
 
--- SUBSCRIPTIONS
+
+profile_auth_content : Model -> Cred -> Html Msg
+profile_auth_content model cred =
+    main_
+        [ class "mdl-layout__content"
+        ]
+        [ stylesheet
+        , div [ class "page-content" ]
+            [ div [ class "card" ] []
+            , div [ class "card" ]
+                [ Html.h1 [ class "title" ] [ text model.title ]
+                , tab model cred
+                ]
+            ]
+        ]
 
 
 view : Model -> { title : String, content : Html Msg }
 view model =
     { title = "Trang cá nhân"
     , content =
-        let
-            title =
-                "Trang cá nhân"
+        case Session.cred model.session of
+            Just cred ->
+                profile_auth_content model cred
 
-            user =
-                model.user
-        in
-        main_
-            [ class "mdl-layout__content"
-            ]
-            [ stylesheet
-            , div [ class "page-content" ]
-                [ div [ class "card" ] []
-                , div [ class "card" ]
-                    [ h1 [ class "title" ] [ text title ]
-                    , tab model
-                    ]
-                ]
-            ]
+            Nothing ->
+                text "Sign in to edit this article."
     }
 
 
-tab : Model -> Html Msg
-tab model =
-    div [ class "" ]
-        [ Tab.config TabMsg
-            |> Tab.justified
-            |> Tab.pills
-            |> Tab.right
-            |> Tab.items
-                [ Tab.item
-                    { id = "detail"
-                    , link =
-                        Tab.link [ class "button-container" ]
-                            [ div []
-                                [ button []
-                                    [ span []
-                                        [ text "Thông tin" ]
-                                    ]
-                                ]
-                            ]
-                    , pane = Tab.pane [] [ hr [] [], info_tab model.user ]
-                    }
-                , Tab.item
-                    { id = "trans"
-                    , link =
-                        Tab.link [ class "button-container" ]
-                            [ div []
-                                [ button []
-                                    [ span []
-                                        [ text "Giao dịch" ]
-                                    ]
-                                ]
-                            ]
-                    , pane = Tab.pane [] [ hr [] [], trans_tab model ]
-                    }
+tab : Model -> Cred -> Html Msg
+tab model cred =
+    case model.form_add_bank of
+        True ->
+            div [ class "add-bank text-center" ]
+                [ Html.h4 [ class "title" ] [ text model.errorMsg ]
+                , div [ class "input-container" ]
+                    [ input
+                        [ Html.Attributes.value model.usernamedbank
+                        , onInput SetNameForBank
+                        , attribute "namedbank" "required"
+                        , autocomplete False
+                        ]
+                        []
+                    , label [ for "namedbank" ]
+                        [ text "Tên (tuỳ thích )" ]
+                    , div [ class "bar" ]
+                        []
+                    ]
+                , div [ class "input-container" ]
+                    [ input
+                        [ Html.Attributes.value model.userbankname
+                        , onInput SetBankName
+                        , attribute "bankname" "required"
+                        , autocomplete False
+                        ]
+                        []
+                    , label [ for "bankname" ]
+                        [ text "Tên ngân hàng" ]
+                    , div [ class "bar" ]
+                        []
+                    ]
+                , div [ class "input-container" ]
+                    [ input
+                        [ Html.Attributes.value model.userbanknumber
+                        , onInput SetBankNumber
+                        , attribute "banknum" "required"
+                        , autocomplete False
+                        ]
+                        []
+                    , label [ for "banknum" ]
+                        [ text "Số tài khoản" ]
+                    , div [ class "bar" ]
+                        []
+                    ]
+                , div [ class "button-container" ]
+                    [ Html.button
+                        [ class
+                            (if String.length model.userbankname > 0 && String.length model.userbanknumber > 0 && String.length model.usernamedbank > 0 then
+                                "valid"
+
+                             else
+                                ""
+                            )
+                        , onClick
+                            (SubmmitBank cred)
+                        ]
+                        [ span []
+                            [ text "Thêm ngân hàng" ]
+                        ]
+                    ]
                 ]
-            |> Tab.view model.tabState
-        ]
+
+        False ->
+            div [ class "" ]
+                [ Tab.config TabMsg
+                    |> Tab.justified
+                    |> Tab.pills
+                    |> Tab.right
+                    |> Tab.items
+                        [ Tab.item
+                            { id = "detail"
+                            , link =
+                                Tab.link [ class "button-container" ]
+                                    [ div []
+                                        [ Html.button []
+                                            [ span []
+                                                [ text "Thông tin" ]
+                                            ]
+                                        ]
+                                    ]
+                            , pane = Tab.pane [] [ hr [] [], info_tab model.user cred ]
+                            }
+                        , Tab.item
+                            { id = "trans"
+                            , link =
+                                Tab.link [ class "button-container" ]
+                                    [ div []
+                                        [ Html.button []
+                                            [ span []
+                                                [ text "Giao dịch" ]
+                                            ]
+                                        ]
+                                    ]
+                            , pane = Tab.pane [] [ hr [] [], trans_tab model ]
+                            }
+                        ]
+                    |> Tab.view model.tabState
+                ]
 
 
 stylesheet =
@@ -253,8 +360,8 @@ stylesheet =
     node tag attrs children
 
 
-info_tab : User -> Html msg
-info_tab user =
+info_tab : User -> Cred -> Html Msg
+info_tab user cred =
     div []
         [ div [ class "row" ]
             [ div [ class "col-sm-4" ]
@@ -278,7 +385,7 @@ info_tab user =
                     ]
                 ]
             , div [ class "col-sm-8 banks" ]
-                [ listbankUser user.banks
+                [ listbankUser user.banks cred
                 ]
             ]
         ]
@@ -289,13 +396,17 @@ append_balance str str1 =
     str1 ++ str
 
 
-listbankUser : List Bank -> Html msg
-listbankUser banks =
+listbankUser : List Bank -> Cred -> Html Msg
+listbankUser banks cred =
     ul []
         [ li [ class "list-bank" ]
             [ aside
-                [ class "bank-card" ]
-                [ strong [ class "" ]
+                [ class "bank-card"
+                , onClick ShowFormAddBank
+                ]
+                [ strong
+                    [ class ""
+                    ]
                     [ text "" ]
                 , div [ class "bank-detail" ]
                     [ strong [ style "color" "#e82953" ] [ text "Thêm ngân hàng " ] ]
@@ -345,3 +456,56 @@ trans_tab model =
                 ]
             ]
         )
+
+
+formDecoder : Decoder User
+formDecoder =
+    Decode.succeed User
+        |> required "username" Decode.string
+        |> required "balance" Decode.int
+        |> required "email" Decode.string
+        |> required "bank" decodeListBank
+
+
+decodeListBank : Decoder (List Bank)
+decodeListBank =
+    Decode.list bankDecode
+
+
+bankDecode : Decoder Bank
+bankDecode =
+    Decode.succeed Bank
+        |> required "name" Decode.string
+        |> required "bank_name" Decode.string
+        |> required "bank_num" Decode.string
+        |> required "is_activated" Decode.string
+
+
+modalview : Model -> Html Msg
+modalview model =
+    case List.length model.errorsMsg of
+        0 ->
+            div [ class "non error" ] []
+
+        _ ->
+            Grid.container [ class "errors" ]
+                [ Modal.config CloseModal
+                    |> Modal.h5 [] [ text "Modal header" ]
+                    |> Modal.body [] [ view_list_errors model.errorsMsg ]
+                    |> Modal.footer []
+                        [ Button.button
+                            [ Button.outlinePrimary, Button.onClick <| AnimateModal Modal.hiddenAnimated ]
+                            [ text "Close" ]
+                        ]
+                    |> Modal.view model.modalVisibility
+                ]
+
+
+view_list_errors : List String -> Html Msg
+view_list_errors errors =
+    div [] <| List.map single_error errors
+
+
+single_error : String -> Html Msg
+single_error error =
+    p [] [ text <| error ]
