@@ -3,6 +3,7 @@ module Api.Endpoint exposing
     , addBank_url
     , articles
     , card_final
+    , cashout_url
     , config_addcard
     , feed
     , final
@@ -64,12 +65,10 @@ type Endpoint
 
 root_url : String
 root_url =
+    -- "http://sec.localhost:8000"
+    -- "http://sec.localhost:8000"
     -- "https://adaostore.herokuapp.com"
-    "http://localhost:8000"
-
-
-
--- "http://chuthe.com"
+    "https://sec.chuthe.com"
 
 
 unwrap : Endpoint -> String
@@ -101,6 +100,11 @@ myRedirect redirect_url =
 
 
 -- ENDPOINTS
+
+
+cashout_url : Endpoint
+cashout_url =
+    url [ "tran", "cashout/" ] []
 
 
 addBank_url : Endpoint

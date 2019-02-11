@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Api exposing (Cred)
 import Browser
-import Browser.Navigation as Nav
+import Browser.Navigation as Nav exposing (load)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Json.Decode as Decode exposing (..)
@@ -126,6 +126,9 @@ changeRouteTo maybeRoute model =
         Just Route.Login ->
             Login.init session
                 |> updateWith Login GotLoginMsg model
+
+        Just Route.Logout ->
+            ( model, Cmd.batch [ Api.logout, Nav.load "/" ] )
 
         Just Route.About ->
             About.init session

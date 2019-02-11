@@ -35,14 +35,14 @@ view model =
     { title = "Home"
     , content =
         div [ class "container-fluid" ]
-            [ div [ class "container" ]
-                [ div [ class "jumbotron mt-5" ]
-                    [ text model.message
-                    , br [] []
-                    , a
-                        [-- Route.href Route.About
+            [ section []
+                [ div [ class "row mysection" ]
+                    [ div [ class "leftsection col-6 col-md-4" ]
+                        [ h1 [ class "myheadtitle" ] [ text "ChuThe.Com" ]
                         ]
-                        [ text "Go to the Login Page" ]
+                    , div [ class "rightsection col-12 col-md-8" ]
+                        [ h4 [ class "myheadtitle" ] [ text "Chào Mừng Bạn Đến với Chuthe.com" ]
+                        ]
                     ]
                 ]
             ]

@@ -135,7 +135,7 @@ modalview model =
             |> Modal.body [] [ text "Modal body" ]
             |> Modal.footer []
                 [ Button.button
-                    [ Button.outlinePrimary, onClick <| AnimateModal Modal.hiddenAnimated ]
+                    [ Button.outlinePrimary, Button.onClick <| AnimateModal Modal.hiddenAnimated ]
                     [ text "Close" ]
                 ]
             |> Modal.view model.modalVisibility

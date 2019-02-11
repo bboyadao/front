@@ -15,6 +15,7 @@ type Route
     = Home
     | Root
     | Login
+    | Logout
     | AddCard
     | Profile
     | About
@@ -28,6 +29,7 @@ parser =
         -- , Parser.map Account (s "account")
         -- , Parser.map About (s "about")
         , Parser.map Login (s "account")
+        , Parser.map Logout (s "logout")
         , Parser.map AddCard (s "addcard")
         , Parser.map Profile (s "profile")
         , Parser.map About (s "about")
@@ -93,6 +95,9 @@ routeToString page =
                 --     [ "about" ]
                 Login ->
                     [ "account" ]
+
+                Logout ->
+                    [ "logout" ]
 
                 Profile ->
                     [ "profile" ]

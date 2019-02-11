@@ -4,6 +4,7 @@ port module Api exposing
     , get
     , httpErrorString
     , login
+    , logout
     , post
     , storeCredWith
     , username
@@ -201,21 +202,30 @@ httpErrorString : Http.Error -> String
 httpErrorString error =
     case error of
         BadUrl text ->
-            "Bad Url: " ++ text
+            "Lỗi chặng cuối"
 
+        -- "Bad Url: " ++ text
         Timeout ->
-            "Http Timeout"
+            "Quá thời quy định "
 
+        -- "Http Timeout"
         NetworkError ->
-            "Network Error"
+            "\u{001C}Lỗi kết nối mạng"
 
+        -- "Network Error"
         BadStatus response ->
-            "Invalid Cridential!"
+            "Lỗi dữ liệu đầu vào không đúng"
 
+        -- "Invalid Cridential!"
+        --  ++ response.body
         -- ++ Debug.toString response.body
         BadPayload message response ->
-            "Bad Http Payload: "
-                ++ Debug.toString message
-                ++ " ("
-                ++ Debug.toString response.status.code
-                ++ ")"
+            "Thông tin đầu vào không đúng"
+
+
+
+-- "Bad Http Payload: "
+--     ++ Debug.toString message
+--     ++ " ("
+--     ++ Debug.toString response.status.code
+--     ++ ")"

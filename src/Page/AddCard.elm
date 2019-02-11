@@ -2,6 +2,8 @@ port module Page.AddCard exposing (Model, Msg(..), init, subscriptions, toSessio
 
 import Api exposing (Cred)
 import Api.Endpoint as Endpoint exposing (Endpoint(..), card_final, config_addcard, final, tran, url_transcard)
+import Bootstrap.Button as Button exposing (onClick)
+import Bootstrap.Modal as Modal exposing (..)
 import Browser.Navigation as Nav
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (spanishLocale, usLocale)
@@ -27,6 +29,11 @@ port exchangetoken : (String -> msg) -> Sub msg
 -- MODEL
 
 
+type Message
+    = Success
+    | Error
+
+
 type alias Card =
     { name : String
     , code : String
@@ -50,10 +57,13 @@ type alias Model =
     , captcha_type : String
     , captcha_txt : String
     , finalresult : String
-    , errorMsg : String
+    , errorsMsg : List String
+    , successmessages : List String
     , cards : List Card
     , card : Card
     , selected_card : String
+    , type_mess : Maybe Message
+    , modalVisibility : Modal.Visibility
     }
 
 
@@ -62,8 +72,8 @@ init session =
     ( { session = session
       , token = ""
       , message = "messsssssss"
-      , arraycardtype = [ "viettel" ]
-      , arrayvalue = [ "100000" ]
+      , arraycardtype = []
+      , arrayvalue = []
       , card_value = ""
       , card_type = ""
       , seri = ""
@@ -74,10 +84,13 @@ init session =
       , captcha_txt = ""
       , valid_in = ""
       , finalresult = ""
-      , errorMsg = ""
+      , errorsMsg = []
+      , successmessages = []
       , cards = []
       , card = { name = "", code = "", values = [] }
       , selected_card = ""
+      , type_mess = Nothing
+      , modalVisibility = Modal.hidden
       }
     , Api.get Endpoint.config_addcard (Session.cred session) cardListDecoder
         |> Http.send GetConfig
@@ -112,13 +125,15 @@ type Msg
     | GotToken String
     | SubmitCaptcha Cred
     | GetConfig (Result Http.Error (List Card))
+    | AnimateModal Modal.Visibility
+    | CloseModal
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetConfig (Err val) ->
-            ( { model | errorMsg = httpErrorString val }, Cmd.none )
+            ( { model | errorsMsg = [ httpErrorString val ] }, Cmd.none )
 
         -- GetConfig (Ok val) ->
         --     ( model, Cmd.none )
@@ -180,6 +195,16 @@ update msg model =
         ChangeCode str ->
             ( { model | code = str }, Cmd.none )
 
+        AnimateModal visibility ->
+            ( { model | modalVisibility = visibility }
+            , Cmd.none
+            )
+
+        CloseModal ->
+            ( { model | modalVisibility = Modal.hidden, errorsMsg = [] }
+            , Cmd.none
+            )
+
         NoOp ->
             ( model, Cmd.none )
 
@@ -238,13 +263,27 @@ getCaptchaCompleted : Model -> Result Http.Error { img : String, url : String } 
 getCaptchaCompleted model result =
     case result of
         Ok sometext ->
-            ( { model | captcha_img = sometext.img, valid_in = sometext.url }
+            ( { model
+                | captcha_img = sometext.img
+                , valid_in = sometext.url
+                , successmessages = [ "Vui lòng nhập mã bảo mật." ]
+                , errorsMsg = []
+                , type_mess = Just Success
+                , modalVisibility = Modal.shown
+              }
               --  |> Debug.log "got you"
             , Cmd.none
             )
 
         Err error ->
-            ( { model | errorMsg = httpErrorString error }, Cmd.none )
+            ( { model
+                | errorsMsg = [ "" ]
+                , successmessages = []
+                , type_mess = Just Error
+                , modalVisibility = Modal.shown
+              }
+            , Cmd.none
+            )
 
 
 encodecard : Model -> Encode.Value
@@ -263,7 +302,10 @@ encodecard model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    exchangetoken GotToken
+    Sub.batch
+        [ exchangetoken GotToken
+        , Modal.subscriptions model.modalVisibility AnimateModal
+        ]
 
 
 
@@ -281,7 +323,7 @@ toSession model =
 
 view : Model -> { title : String, content : Html Msg }
 view model =
-    { title = "Add Card"
+    { title = "Nạp Thẻ"
     , content =
         if String.length model.captcha_img > 0 then
             case Session.cred model.session of
@@ -289,7 +331,7 @@ view model =
                     someview model cred
 
                 Nothing ->
-                    text "Sign in to edit this article."
+                    div [ class "container" ] [ div [ class "jumbotron mt-5" ] [ text "Bạn cần đăng nhập để thực hiện chức năng này" ] ]
 
         else
             case Session.cred model.session of
@@ -297,7 +339,7 @@ view model =
                     content_view model cred
 
                 Nothing ->
-                    text "Sign in to edit this article."
+                    div [ class "container" ] [ div [ class "jumbotron mt-5" ] [ text "Bạn cần đăng nhập để thực hiện chức năng này" ] ]
     }
 
 
@@ -307,9 +349,9 @@ content_view model cred =
         [ div [ class "page-content" ]
             [ div [ class "card" ] []
             , div [ class "card" ]
-                [ h1 [ class "title" ]
+                [ Html.h1 [ class "title" ]
                     [ text "Nạp Thẻ" ]
-                , h4 [] [ text model.token ]
+                , Html.h4 [] [ text model.token ]
                 , div [ class "wrap" ]
                     [ div [ class "input-container" ]
                         -- https://ellie-app.com/kcF6mQRvNQa1
@@ -318,19 +360,19 @@ content_view model cred =
                             , class "myselect"
                             , onChange Value_Follow_Card_Type_Msg
                             ]
-                          <|
-                            List.map cardnameview model.cards
+                            [ option [] [ text "Chọn loại thẻ" ]
+                            , optgroup [] <| List.map cardnameview model.cards
+                            ]
                         ]
                     , div [ class "input-container" ]
                         [ select
                             [ id "card_type"
                             , class "myselect"
-                            , onInput ChangeCardTypeMsg
+                            , onInput ChangeValueMsg
                             ]
-                            (List.map
-                                viewOptionvalue
-                                model.arrayvalue
-                            )
+                            [ option [] [ text "Chọn mệnh giá" ]
+                            , optgroup [] <| List.map viewOptionvalue model.arrayvalue
+                            ]
                         ]
                     , div [ class "input-container" ]
                         [ input
@@ -359,7 +401,7 @@ content_view model cred =
                             []
                         ]
                     , div [ class "button-container" ]
-                        [ button
+                        [ Html.button
                             [ onClick (SubmitCard cred)
                             ]
                             [ span []
@@ -369,6 +411,7 @@ content_view model cred =
                     , div [ class "footer" ] []
                     ]
                 , stylesheet
+                , modalView model
                 ]
             ]
         ]
@@ -379,15 +422,18 @@ cardnameview card =
     option
         [ -- Html.Attributes.selected True
           Html.Attributes.value card.name
+
+        --   , Html.Attributes.selected True
         ]
         [ card.name |> text ]
 
 
-
 viewOptionvalue : String -> Html Msg
 viewOptionvalue op =
-    option [ Html.Attributes.value op
-    ,Html.Attributes.selected True ]
+    option
+        [ Html.Attributes.value op
+        , Html.Attributes.selected False
+        ]
         [ op
             |> String.toFloat
             |> Maybe.withDefault 0
@@ -427,7 +473,7 @@ someview model cred =
         [ div [ class "page-content" ]
             [ div [ class "card" ] []
             , div [ class "card" ]
-                [ h1 [ class "title" ]
+                [ Html.h1 [ class "title" ]
                     [ text "Vui Lòng Nhập Mã Bảo Mật" ]
                 , div []
                     [ img
@@ -459,6 +505,7 @@ someview model cred =
                     , div [ class "footer" ] []
                     ]
                 , stylesheet
+                , modalView model
                 ]
             ]
         ]
@@ -497,7 +544,60 @@ find_card_by_name cardname model =
     in
     case findcard of
         Just card ->
-            ( { model | arrayvalue = card.values }, Cmd.none )
+            ( { model | arrayvalue = card.values, card_type = card.name }, Cmd.none )
 
         _ ->
             ( model, Cmd.none )
+
+
+modalView : Model -> Html Msg
+modalView model =
+    case model.type_mess of
+        Nothing ->
+            Modal.config CloseModal
+                |> Modal.h5 [] [ text "Lỗi không xác định" ]
+                |> Modal.body [] [ view_list_mes model.errorsMsg ]
+                |> Modal.footer []
+                    [ Button.button
+                        [ Button.outlinePrimary
+                        , Button.attrs [ onClick <| AnimateModal Modal.hiddenAnimated ]
+                        ]
+                        [ text "Close" ]
+                    ]
+                |> Modal.view model.modalVisibility
+
+        Just Error ->
+            Modal.config CloseModal
+                |> Modal.header [ class "modal-header badge badge-danger" ] [ Html.h5 [] [ text "Lỗi" ] ]
+                |> Modal.body [] [ view_list_mes model.errorsMsg ]
+                |> Modal.footer []
+                    [ Button.button
+                        [ Button.outlinePrimary
+                        , Button.attrs [ onClick <| AnimateModal Modal.hiddenAnimated ]
+                        ]
+                        [ text "Close" ]
+                    ]
+                |> Modal.view model.modalVisibility
+
+        Just Success ->
+            Modal.config CloseModal
+                |> Modal.header [ class "modal-header badge badge-success" ] [ Html.h5 [] [ text "Thành Công" ] ]
+                |> Modal.body [] [ view_list_mes model.successmessages ]
+                |> Modal.footer []
+                    [ Button.button
+                        [ Button.outlinePrimary
+                        , Button.attrs [ onClick <| AnimateModal Modal.hiddenAnimated ]
+                        ]
+                        [ text "Ẩn" ]
+                    ]
+                |> Modal.view model.modalVisibility
+
+
+view_list_mes : List String -> Html Msg
+view_list_mes errors =
+    div [] <| List.map single_mess errors
+
+
+single_mess : String -> Html Msg
+single_mess error =
+    p [] [ text <| error ]

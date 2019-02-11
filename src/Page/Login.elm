@@ -3,6 +3,9 @@ port module Page.Login exposing (Model, Msg(..), init, subscriptions, toSession,
 import Api exposing (Cred(..), httpErrorString)
 import Api.Endpoint as Endpoint exposing (gotoMainsite, login, root_url)
 import Avatar exposing (Avatar(..))
+import Bootstrap.Button as Button exposing (onClick)
+import Bootstrap.CDN as CDN
+import Bootstrap.Modal as Modal exposing (..)
 import Browser
 import Browser.Navigation exposing (load)
 import Html exposing (..)
@@ -20,8 +23,10 @@ import Viewer exposing (Viewer(..))
 
 
 
--- MODEL
 
+type Message
+    = Success
+    | Error
 
 type alias Errors =
     { username : String
@@ -32,6 +37,7 @@ type alias Errors =
 
 type alias Model =
     { session : Session
+    , modalVisibility : Modal.Visibility
     , container_active : Bool
     , username : String
     , ava : Maybe String
@@ -43,13 +49,17 @@ type alias Model =
     , token : String
     , password : String
     , passwordAgain : String
-    , errorMsg : String
+    , successmessages : List String
+    , errorsMsg : List String
+    , type_mess : Maybe Message
+    
     }
 
 
 init : Session -> ( Model, Cmd msg )
 init session =
     ( { session = session
+      , modalVisibility = Modal.hidden
       , container_active = False
       , username = ""
       , ava = Just ""
@@ -61,7 +71,9 @@ init session =
       , token = ""
       , password = ""
       , passwordAgain = ""
-      , errorMsg = ""
+      , successmessages = []
+      , errorsMsg = []
+      , type_mess = Nothing
       }
     , Cmd.none
     )
@@ -89,9 +101,14 @@ signupUser model =
                 ]
                 |> Http.jsonBody
     in
-    userDecoder
+    signupDecoder
         |> Api.post Endpoint.signup_url Nothing bod
         |> Http.send GetTokenCompleted
+
+
+signupDecoder : Decoder String
+signupDecoder =
+    Decode.field "key" Decode.string
 
 
 authUser : Model -> Cmd Msg
@@ -104,13 +121,13 @@ authUser model =
                 ]
                 |> Http.jsonBody
     in
-    userDecoder
+    loginDecoder
         |> Api.post Endpoint.login_url Nothing bod
         |> Http.send GetTokenCompleted
 
 
-userDecoder : Decoder String
-userDecoder =
+loginDecoder : Decoder String
+loginDecoder =
     Decode.field "token" Decode.string
 
 
@@ -120,14 +137,25 @@ getTokenCompleted model result =
         Ok some_token ->
             let
                 withToken =
-                    { model | token = some_token }
+                    { model
+                        | token = some_token
+                        , successmessages = [ "thành công" ]
+                        , modalVisibility = Modal.shown
+                        , type_mess = Just Success
+                    }
             in
             ( model
             , Viewer.store <| convert <| withToken
             )
 
         Err error ->
-            ( { model | errorMsg = httpErrorString error }, Cmd.none )
+            ( { model
+                | errorsMsg = ["Hãy chắc chắn rằng bạn đã nhập chính xác.","Nếu như bạn đang đăng kí mới tài khoản. Có lẽ đã có người sử dụng.", httpErrorString error ]
+                , modalVisibility = Modal.shown
+                , type_mess = Just Error
+              }
+            , Cmd.none
+            )
 
 
 convert : Model -> Viewer
@@ -147,7 +175,10 @@ convert model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Session.changes GotSession (Session.navKey model.session)
+    Sub.batch
+        [ Session.changes GotSession (Session.navKey model.session)
+        , Modal.subscriptions model.modalVisibility AnimateModal
+        ]
 
 
 
@@ -165,26 +196,38 @@ type Msg
     | Addclass_active
     | Addclass_close
     | GotSession Session
+    | CloseModal
+    | ShowModal
+    | AnimateModal Modal.Visibility
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GotSession session ->
-            ( { model | session = session }
+            ( { model | session = session, errorsMsg = [] }
             , Route.replaceUrl (Session.navKey session) Route.Home
             )
 
         ClickLogin ->
-            ( { model | errorMsg = "" }
+            ( { model | successmessages = [], errorsMsg = [] }
             , authUser model
             )
 
         ClickSignup ->
-            ( { model | errorMsg = "" }, signupUser model )
+            ( { model
+                | successmessages = []
+                , errorsMsg = []
+              }
+            , signupUser model
+            )
 
         SetUsername name ->
-            ( { model | username = name }, Cmd.none )
+            ( { model
+                | username = name
+              }
+            , Cmd.none
+            )
 
         SetPassword password ->
             ( { model | password = password }, Cmd.none )
@@ -204,6 +247,23 @@ update msg model =
         Addclass_close ->
             ( { model | container_active = False }, Cmd.none )
 
+        ShowModal ->
+            ( { model | modalVisibility = Modal.shown }, Cmd.none )
+
+        AnimateModal visibility ->
+            ( { model | modalVisibility = visibility }
+            , Cmd.none
+            )
+
+        CloseModal ->
+            ( { model
+                | modalVisibility = Modal.hidden
+                , successmessages = []
+                , errorsMsg = []
+              }
+            , Cmd.none
+            )
+
 
 
 -- VIEW
@@ -211,7 +271,7 @@ update msg model =
 
 view : Model -> { title : String, content : Html Msg }
 view model =
-    { title = "Trang Đăng Nhập"
+    { title = "Trang tài khoản"
     , content = login_page model
     }
 
@@ -244,17 +304,8 @@ login_page model =
         [ -- stylesheet
           div [ class "card" ] []
         , div [ class "card" ]
-            [ h1 [ class "title" ]
+            [ Html.h1 [ class "title" ]
                 [ text "Đăng Nhập" ]
-            , div
-                [ class "errors"
-                , if String.length model.errorMsg > 0 then
-                    hidden False
-
-                  else
-                    hidden True
-                ]
-                [ li [ class "error" ] [ text model.errorMsg ] ]
             , div []
                 [ div [ class "input-container" ]
                     [ input
@@ -304,7 +355,7 @@ login_page model =
             [ div
                 [ class "toggle", onClick Addclass_active ]
                 [ text "" ]
-            , h1 [ class "title" ]
+            , Html.h1 [ class "title" ]
                 [ text "Đăng Ký"
                 , div [ class "close", onClick Addclass_close ]
                     []
@@ -372,6 +423,7 @@ login_page model =
                     ]
                 ]
             ]
+        , modalView model
         ]
 
 
@@ -383,3 +435,57 @@ proFile model =
 toSession : Model -> Session
 toSession model =
     model.session
+
+
+modalView : Model -> Html Msg
+modalView model =
+    case model.type_mess of
+        Nothing ->
+            Modal.config CloseModal
+                |> Modal.h5 [] [ text "Lỗi không xác định" ]
+                |> Modal.body [] [ view_list_mes model.errorsMsg ]
+                |> Modal.footer []
+                    [ Button.button
+                        [ Button.outlinePrimary
+                        , Button.attrs [ onClick <| AnimateModal Modal.hiddenAnimated ]
+                        ]
+                        [ text "Close" ]
+                    ]
+                |> Modal.view model.modalVisibility
+
+        Just Error ->
+            Modal.config CloseModal
+                |> Modal.header [class "modal-header badge badge-danger"][Html.h5 [] [ text "Lỗi" ]]
+                |> Modal.body [] [ view_list_mes model.errorsMsg ]
+                |> Modal.footer []
+                    [ Button.button
+                        [ Button.outlinePrimary
+                        , Button.attrs [ onClick <| AnimateModal Modal.hiddenAnimated ]
+                        ]
+                        [ text "Close" ]
+                    ]
+                |> Modal.view model.modalVisibility
+
+        Just Success ->
+            Modal.config CloseModal
+                |> Modal.header [class "modal-header badge badge-success"][Html.h5 [] [ text "Thành Công" ]]
+                
+                |> Modal.body [] [ view_list_mes model.successmessages ]
+                |> Modal.footer []
+                    [ Button.button
+                        [ Button.outlinePrimary
+                        , Button.attrs [ onClick <| AnimateModal Modal.hiddenAnimated ]
+                        ]
+                        [ text "Ẩn" ]
+                    ]
+                |> Modal.view model.modalVisibility
+
+
+view_list_mes : List String -> Html Msg
+view_list_mes errors =
+    div [] <| List.map single_mess errors
+
+
+single_mess : String -> Html Msg
+single_mess error =
+    p [] [ text <| error ]

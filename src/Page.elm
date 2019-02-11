@@ -27,7 +27,7 @@ type Page
 
 view : Maybe Viewer -> Page -> { title : String, content : Html msg } -> Document msg
 view maybeviewer page { title, content } =
-    { title = title ++ " - Mua Bán Thẻ Cào"
+    { title = title ++ " - Chủ Thẻ"
     , body = viewHeader page maybeviewer :: content :: [ viewFooter ]
     }
 
@@ -65,13 +65,14 @@ viewMenu page maybeviewer =
 
             -- , navbar page Route.Root [ text "Hướng Dẫn" ]
             , navbar page Route.AddCard [ text "Nạp Thẻ" ]
-            , linkTo Route.Profile [ Username.toHtml username ]
+            , linkTo Route.Profile
+                [ Username.toHtml username ]
+            , linkTo Route.Logout
+                [ text "Thoát" ]
             ]
 
         Nothing ->
             [ navbar page Route.About [ text "Giới thiệu" ]
-
-            -- , navbar page Route.Root [ text "Hướng Dẫn" ]
             , navbar page Route.AddCard [ text "Nạp Thẻ" ]
             , navbar page Route.Login [ text "Tài khoản" ]
             ]
@@ -82,26 +83,19 @@ viewHeader page maybeviewer =
     header [ class "mdl-layout--fixed-header" ]
         [ div [ class "mdl-layout__header-row" ]
             [ span [ class "mdl-layout-title" ]
-                [ navbar page Route.Home [ text "Home" ] ]
+                [ navbar page Route.Home [ text "Trang Chính" ] ]
             , div [ class "mdl-layout-spacer" ] []
             , nav [ class "mdl-navigation" ] <|
                 viewMenu page maybeviewer
-
-            -- nav
             ]
         ]
-
-
-
--- "mdl-textfield mdl-js-textfield mdl-textfield--expandable
---                   mdl-textfield--floating-label mdl-textfield--align-right"
 
 
 viewFooter : Html msg
 viewFooter =
     footer
         [ class "container-fluid" ]
-        [ div [ class "container" ]
+        [ div [ class "" ]
             [ text "Beta V0.1." ]
         ]
 
